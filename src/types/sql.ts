@@ -8,7 +8,8 @@ export type SchemaId =
   | 'tickets'
   | 'betreuung'
   | 'lr_semijoin'
-  | 'fd_relation';
+  | 'fd_relation'
+  | 'null_semantik';
 
 export type Difficulty = 'Basis' | 'Mittel' | 'Klausurniveau';
 

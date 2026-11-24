@@ -110,7 +110,71 @@ export const fdRelationSchema: SchemaDef = {
   `,
 };
 
-export const SHEET_EXTRA_SCHEMAS: SchemaDef[] = [lrSemijoinSchema, fdRelationSchema];
+export const nullSemantikSchema: SchemaDef = {
+  id: 'null_semantik',
+  title: 'NULL-Semantik in SQL (R / S)',
+  shortTitle: 'NULL-Semantik (Blatt 5)',
+  sheets: 'Übungsblatt 5 (Aufg. 4)',
+  summary:
+    'Die beiden Beispielrelationen R(X, Y) und S(X, Z) aus Übungsblatt 5 Aufg. 4 zum Testen und Nachvollziehen der dreiwertigen NULL-Logik bei Aggregaten, GROUP BY, Joins und WHERE-Prädikaten.',
+  explanationBullets: [
+    'R(X, Y) enthält 5 Tupel: (x1, 1), (x1, 2), (x2, 7), (x3, NULL) und (NULL, 5).',
+    'S(X, Z) enthält 4 Tupel: (x1, 11), (x2, 11), (NULL, 11) und (NULL, NULL).',
+    'Die SQL-Anfragen von Blatt 5 Aufg. 4(a)–(e) sind als Startvorlage bereits im Editor eingetragen — überlege dir das Ergebnis zuerst im Kopf und prüfe es dann live gegen PostgreSQL!',
+  ],
+  examNotes: [
+    'COUNT(*) zählt alle Zeilen (inkl. NULL-Zeilen), COUNT(Spalte) und SUM(Spalte) ignorieren dagegen NULL-Werte (SUM über eine rein leere/nur-NULL-Gruppe ergibt NULL).',
+    'GROUP BY fasst alle NULL-Werte zu genau EINER Gruppe zusammen — bei Vergleichen (R.X = S.X oder X = NULL) liefert NULL = NULL hingegen UNKNOWN (wird ausgefiltert)!',
+  ],
+  tables: [
+    {
+      name: 'R',
+      description: 'Relation R(X, Y) mit 5 Tupeln (inkl. NULL in X und Y)',
+      columns: [
+        { name: 'X', type: 'VARCHAR(10)', note: 'NULL möglich' },
+        { name: 'Y', type: 'INTEGER', note: 'NULL möglich' },
+      ],
+    },
+    {
+      name: 'S',
+      description: 'Relation S(X, Z) mit 4 Tupeln (inkl. doppeltem NULL)',
+      columns: [
+        { name: 'X', type: 'VARCHAR(10)', note: 'NULL möglich' },
+        { name: 'Z', type: 'INTEGER', note: 'NULL möglich' },
+      ],
+    },
+  ],
+  seedSql: `
+    CREATE TABLE R (
+      X VARCHAR(10),
+      Y INTEGER
+    );
+
+    CREATE TABLE S (
+      X VARCHAR(10),
+      Z INTEGER
+    );
+
+    INSERT INTO R VALUES
+      ('x1', 1),
+      ('x1', 2),
+      ('x2', 7),
+      ('x3', NULL),
+      (NULL, 5);
+
+    INSERT INTO S VALUES
+      ('x1', 11),
+      ('x2', 11),
+      (NULL, 11),
+      (NULL, NULL);
+  `,
+};
+
+export const SHEET_EXTRA_SCHEMAS: SchemaDef[] = [
+  lrSemijoinSchema,
+  fdRelationSchema,
+  nullSemantikSchema,
+];
 
 export const SHEET_ONLY_EXERCISES: Exercise[] = [
   // ===========================================================================
@@ -567,6 +631,124 @@ HAVING COUNT(DISTINCT B) > 1;`,
     solutionExplanation:
       'Genau die Musterlösung von Blatt 7 Aufg. 2(b): Sobald mindestens ein Ergebnis-Tupel zurückkommt, gilt $A \\to B$ in `R` nicht. Im regulären Datensatz liefert die Anfrage 0 Zeilen; beim Zusatztest mit `(\'a1\', \'b2\', \'c9\', \'d1\')` findet sie exakt `(\'a1\', 2)`.',
   },
+
+  // ===========================================================================
+  // ÜBUNGSBLATT 5 · AUFGABE 4 (a–e) auf null_semantik
+  // ===========================================================================
+  {
+    id: 'blatt05-4a-null-aggregate',
+    schemaId: 'null_semantik',
+    title: 'NULL-Verhalten bei Aggregatfunktionen auf R',
+    source: 'Übungsblatt 5 · Aufg. 4(a)',
+    difficulty: 'Basis',
+    topics: ['NULL-Semantik', 'COUNT(*)', 'COUNT(Spalte)', 'SUM'],
+    prompt:
+      'Bestimmen Sie zunächst „im Kopf“, was `SELECT COUNT(*), COUNT(X), COUNT(Y), SUM(Y) FROM R;` liefert, und führen Sie die Anfrage anschließend hier gegen PostgreSQL aus.',
+    expectedColumns: ['count_all', 'count_x', 'count_y', 'sum_y'],
+    orderMatters: false,
+    starterSql: `SELECT COUNT(*), COUNT(X), COUNT(Y), SUM(Y)
+FROM R;`,
+    solutionSql: `SELECT COUNT(*), COUNT(X), COUNT(Y), SUM(Y)
+FROM R;`,
+    hints: [
+      '`COUNT(*)` zählt alle 5 Tupel von `R`, während `COUNT(X)`, `COUNT(Y)` und `SUM(Y)` `NULL`-Werte ignorieren.',
+    ],
+    solutionExplanation:
+      'Ergebnis: `(5, 4, 4, 15)`. `R` hat 5 Zeilen; in `X` fehlt ein Wert (`NULL`), in `Y` fehlt ebenfalls ein Wert (`NULL`), und `1 + 2 + 7 + 5 = 15`.',
+  },
+  {
+    id: 'blatt05-4b-null-groupby-r',
+    schemaId: 'null_semantik',
+    title: 'NULL-Gruppierung bei GROUP BY X auf R',
+    source: 'Übungsblatt 5 · Aufg. 4(b)',
+    difficulty: 'Basis',
+    topics: ['NULL-Semantik', 'GROUP BY', 'COUNT', 'SUM'],
+    prompt:
+      'Bestimmen Sie zuerst „im Kopf“, was `SELECT X, COUNT(Y), SUM(Y) FROM R GROUP BY X;` liefert (insbesondere für die Gruppen `x3` und `NULL`), und testen Sie die Anfrage anschließend.',
+    expectedColumns: ['x', 'count_y', 'sum_y'],
+    orderMatters: false,
+    starterSql: `SELECT X, COUNT(Y), SUM(Y)
+FROM R
+GROUP BY X;`,
+    solutionSql: `SELECT X, COUNT(Y), SUM(Y)
+FROM R
+GROUP BY X;`,
+    hints: [
+      '`GROUP BY` bildet für `X = NULL` eine eigene Gruppe! Und was liefert `SUM(Y)` bzw. `COUNT(Y)` für `x3`, wo `Y` nur `NULL` ist?',
+    ],
+    solutionExplanation:
+      'Ergebnis: `(x1, 2, 3)`, `(x2, 1, 7)`, `(x3, 0, NULL)`, `(NULL, 1, 5)`. Wichtig für die Klausur: `COUNT(NULL)` ist `0`, während `SUM` über eine Gruppe ohne Nicht-NULL-Werte `NULL` ergibt!',
+  },
+  {
+    id: 'blatt05-4c-null-join',
+    schemaId: 'null_semantik',
+    title: 'Equi-Join R.X = S.X mit NULL-Werten',
+    source: 'Übungsblatt 5 · Aufg. 4(c)',
+    difficulty: 'Basis',
+    topics: ['NULL-Semantik', 'JOIN', '3VL'],
+    prompt:
+      'Bestimmen Sie zuerst „im Kopf“, welche Tupel `SELECT * FROM R, S WHERE R.X = S.X;` zurückgibt (werden die `NULL`-Zeilen aus `R` und `S` miteinander gejoint?), und verifizieren Sie es.',
+    expectedColumns: ['rx', 'ry', 'sx', 'sz'],
+    orderMatters: false,
+    starterSql: `SELECT *
+FROM R, S
+WHERE R.X = S.X;`,
+    solutionSql: `SELECT *
+FROM R, S
+WHERE R.X = S.X;`,
+    hints: [
+      'Was ergibt der Vergleich `NULL = NULL` in SQLs dreiwertiger Logik?',
+    ],
+    solutionExplanation:
+      'Ergebnis: 3 Zeilen (`x1` zweimal aus `R` × einmal aus `S`, sowie `x2`). `NULL = NULL` ergibt `UNKNOWN` (nicht `TRUE`) — daher werden die `NULL`-Tupel aus `R` und `S` beim Join NICHT verknüpft.',
+  },
+  {
+    id: 'blatt05-4d-null-where',
+    schemaId: 'null_semantik',
+    title: 'Vergleich X = NULL vs. X = \'NULL\' auf S',
+    source: 'Übungsblatt 5 · Aufg. 4(d)',
+    difficulty: 'Basis',
+    topics: ['NULL-Semantik', 'WHERE', 'IS NULL'],
+    prompt:
+      'Bestimmen Sie zuerst „im Kopf“, was `SELECT * FROM S WHERE (X = NULL) OR (X = \'NULL\');` liefert, und überprüfen Sie es per PostgreSQL.',
+    expectedColumns: ['x', 'z'],
+    orderMatters: false,
+    allowEmptyExpected: true,
+    starterSql: `SELECT *
+FROM S
+WHERE (X = NULL) OR (X = 'NULL');`,
+    solutionSql: `SELECT *
+FROM S
+WHERE (X = NULL) OR (X = 'NULL');`,
+    hints: [
+      'Achten Sie auf den Unterschied zwischen `X IS NULL`, `X = NULL` (immer `UNKNOWN`) und dem String-Literal `\'NULL\'`.',
+    ],
+    solutionExplanation:
+      'Ergebnis: **leer (0 Zeilen)**! `X = NULL` ist für jedes Tupel `UNKNOWN`, und `X = \'NULL\'` vergleicht mit der Zeichenkette `"NULL"` (die nicht in `S` vorkommt). Für echte NULL-Prüfung muss immer `X IS NULL` stehen.',
+  },
+  {
+    id: 'blatt05-4e-null-groupby-s',
+    schemaId: 'null_semantik',
+    title: 'GROUP BY X mit mehreren NULL-Zeilen auf S',
+    source: 'Übungsblatt 5 · Aufg. 4(e)',
+    difficulty: 'Basis',
+    topics: ['NULL-Semantik', 'GROUP BY', 'COUNT(*)'],
+    prompt:
+      'Bestimmen Sie zuerst „im Kopf“, wie viele Gruppen `SELECT X, COUNT(*) FROM S GROUP BY X;` bildet und welchen Wert `COUNT(*)` für `NULL` hat, und testen Sie die Abfrage.',
+    expectedColumns: ['x', 'count'],
+    orderMatters: false,
+    starterSql: `SELECT X, COUNT(*)
+FROM S
+GROUP BY X;`,
+    solutionSql: `SELECT X, COUNT(*)
+FROM S
+GROUP BY X;`,
+    hints: [
+      'In `S` stehen zwei Zeilen mit `X = NULL` (eine davon komplett `(NULL, NULL)`). Werden beide zu einer Gruppe zusammengefasst und von `COUNT(*)` gezählt?',
+    ],
+    solutionExplanation:
+      'Ergebnis: `(x1, 1)`, `(x2, 1)`, `(NULL, 2)`. Anders als beim `=`-Vergleich fasst `GROUP BY` alle `NULL`-Werte zu einer gemeinsamen Gruppe zusammen, und `COUNT(*)` zählt auch das Tupel `(NULL, NULL)`.',
+  },
 ];
 
 export const WORKSHEETS: WorksheetDef[] = [
@@ -693,9 +875,9 @@ export const WORKSHEETS: WorksheetDef[] = [
     date: '09.10.2026',
     chapters: 'Kap. 3, 4 · Semi-Join, NULL & TerraDB',
     summary:
-      'Kernblatt für SQL-Abfragen: Duplikatsemantik bei Joins vs. EXISTS (Aufg. 1a–j) sowie 9 klassische SQL-Anfragen auf der Terra-Datenbank (Aufg. 5a–i).',
+      'Kernblatt für SQL-Abfragen: Duplikatsemantik bei Joins vs. EXISTS (Aufg. 1a–j), NULL-Semantik auf R und S (Aufg. 4a–e) sowie 9 klassische SQL-Anfragen auf der Terra-Datenbank (Aufg. 5a–i).',
     infoNote:
-      'Außerdem auf Blatt 5: Aufg. 3 (Bahn-SQL-Multiple-Choice — als eigenständige Schreibaufgabe auch unter „Alle Schemas“ als „Zugtypen Mannheim → Frankfurt“ enthalten) sowie Aufg. 4 (NULL-Semantik im Kopf).',
+      'Außerdem auf Blatt 5: Aufg. 3 (Bahn-SQL-Multiple-Choice — als eigenständige Schreibaufgabe auch unter „Alle Schemas“ als „Zugtypen Mannheim → Frankfurt“ enthalten).',
     tasks: [
       {
         id: 'b05-a1',
@@ -717,6 +899,22 @@ export const WORKSHEETS: WorksheetDef[] = [
           { label: '(i)', exerciseId: 'blatt05-1i-r-exists-l-set', kindBadge: 'EXISTS + DISTINCT' },
           { label: '(j1)', exerciseId: 'blatt05-1j1-d-ohne-exists', kindBadge: 'Ohne EXISTS' },
           { label: '(j2)', exerciseId: 'blatt05-1j2-h-ohne-exists', kindBadge: 'Ohne EXISTS' },
+        ],
+      },
+      {
+        id: 'b05-a4',
+        taskNumber: 'Aufgabe 4',
+        title: 'NULL-Semantik in unterschiedlichen SQL-Kontexten (R und S)',
+        schemaId: 'null_semantik',
+        intro:
+          'Gegeben sind `R(X, Y)` und `S(X, Z)` mit `NULL`-Werten. Bestimmen Sie das Ergebnis der 5 Anfragen (a)–(e) zuerst „im Kopf“ und verifizieren Sie es direkt gegen PostgreSQL (die Queries sind im Editor bereits vorbelegt).',
+        isOfficialSql: true,
+        subtasks: [
+          { label: '(a)', exerciseId: 'blatt05-4a-null-aggregate', kindBadge: 'Aggregate' },
+          { label: '(b)', exerciseId: 'blatt05-4b-null-groupby-r', kindBadge: 'GROUP BY' },
+          { label: '(c)', exerciseId: 'blatt05-4c-null-join', kindBadge: 'JOIN + NULL' },
+          { label: '(d)', exerciseId: 'blatt05-4d-null-where', kindBadge: 'WHERE + NULL' },
+          { label: '(e)', exerciseId: 'blatt05-4e-null-groupby-s', kindBadge: 'GROUP BY' },
         ],
       },
       {
