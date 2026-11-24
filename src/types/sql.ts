@@ -13,6 +13,11 @@ export type SchemaId =
 
 export type Difficulty = 'Basis' | 'Mittel' | 'Klausurniveau';
 
+export interface OrderColumnSpec {
+  index: number;
+  dir: 'asc' | 'desc';
+}
+
 export interface ColumnDoc {
   name: string;
   type: string;
@@ -57,6 +62,8 @@ export interface Exercise {
   expectedColumns: string[];
   /** Whether row order matters (true when ORDER BY is explicitly requested) */
   orderMatters: boolean;
+  /** Optional sort-column spec allowing arbitrary tie order when no tie-breaker was requested */
+  orderColumns?: OrderColumnSpec[];
   /** Whether duplicates must be eliminated (helps produce targeted DISTINCT diagnostics) */
   requiresDistinct?: boolean;
   /** Valid PostgreSQL reference query */

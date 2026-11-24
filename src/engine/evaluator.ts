@@ -1,7 +1,55 @@
-import type { EvaluationResult, Exercise, QueryResult } from '../types/sql';
+import type { EvaluationResult, Exercise, OrderColumnSpec, QueryResult } from '../types/sql';
 import { buildSqlErrorInfo, executeQuery } from './pgEngine';
 
 const NUMERIC_RE = /^[+-]?(\d+(\.\d+)?|\.\d+)$/;
+
+function compareCellsForSort(
+  a: string | number | boolean | null,
+  b: string | number | boolean | null
+): number {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+
+  const aNum =
+    typeof a === 'number'
+      ? a
+      : typeof a === 'string' && NUMERIC_RE.test(a.trim())
+        ? Number(a.trim())
+        : NaN;
+  const bNum =
+    typeof b === 'number'
+      ? b
+      : typeof b === 'string' && NUMERIC_RE.test(b.trim())
+        ? Number(b.trim())
+        : NaN;
+
+  if (Number.isFinite(aNum) && Number.isFinite(bNum)) {
+    return aNum - bNum;
+  }
+
+  const sa = String(a);
+  const sb = String(b);
+  return sa < sb ? -1 : sa > sb ? 1 : 0;
+}
+
+function isSortedByOrderColumns(
+  rows: (string | number | boolean | null)[][],
+  specs: OrderColumnSpec[]
+): boolean {
+  for (let i = 1; i < rows.length; i++) {
+    const prev = rows[i - 1];
+    const curr = rows[i];
+    for (const spec of specs) {
+      const cmp = compareCellsForSort(prev[spec.index], curr[spec.index]);
+      if (cmp === 0) continue;
+      if (spec.dir === 'asc' && cmp > 0) return false;
+      if (spec.dir === 'desc' && cmp < 0) return false;
+      break;
+    }
+  }
+  return true;
+}
 
 function normalizeForCompare(val: string | number | boolean | null): string {
   if (val === null) return '\u0000NULL';
@@ -72,7 +120,10 @@ function compareResults(
       };
     }
 
-    const sameOrder = userKeys.every((v, i) => v === expectedKeys[i]);
+    const sameOrder =
+      userKeys.every((v, i) => v === expectedKeys[i]) ||
+      (Boolean(exercise.orderColumns?.length) &&
+        isSortedByOrderColumns(user.rows, exercise.orderColumns!));
     if (sameOrder) {
       return {
         ok: true,

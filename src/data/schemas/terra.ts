@@ -214,6 +214,7 @@ JOIN Land l ON lt.L_ID = l.L_ID;`,
       'Geben Sie für jedes Land (mit mindestens einem Berg) dessen Namen, die Anzahl der Berge sowie die Höhe des höchsten Berges (in dieser Reihenfolge) aus. Sortieren Sie absteigend nach der Höhe des höchsten Berges.',
     expectedColumns: ['Name', 'AnzahlBerge', 'HoechsterBerg'],
     orderMatters: true,
+    orderColumns: [{ index: 2, dir: 'desc' }],
     solutionSql: `SELECT l.Name, COUNT(*) AS AnzahlBerge, MAX(b.Hoehe) AS HoechsterBerg
 FROM Land l
 JOIN Landesteil lt ON lt.L_ID = l.L_ID
@@ -345,6 +346,7 @@ ORDER BY l.Name ASC;`,
       'Erstellen Sie eine Rangliste der Länder in \'Europa\' absteigend nach ihrer Fläche (größtes Land hat Rang 1). Geben Sie Name und Rang (in dieser Reihenfolge) aufsteigend sortiert nach Rang aus.',
     expectedColumns: ['Name', 'Rang'],
     orderMatters: true,
+    orderColumns: [{ index: 1, dir: 'asc' }],
     solutionSql: `SELECT l.Name, RANK() OVER (ORDER BY l.Flaeche DESC) AS Rang
 FROM Land l
 JOIN umfasst u ON l.L_ID = u.L_ID
@@ -518,6 +520,7 @@ ORDER BY l.Name ASC;`,
       'Bestimmen Sie die Namen und die Mitgliederzahl (in dieser Reihenfolge) aller Organisationen, die mehr als 20 Mitglieder haben. Sortieren Sie die Ergebnisse absteigend nach der Mitgliederzahl.',
     expectedColumns: ['Name', 'Mitglieder'],
     orderMatters: true,
+    orderColumns: [{ index: 1, dir: 'desc' }],
     solutionSql: `SELECT o.Name, COUNT(*) AS Mitglieder
 FROM Organisation o
 JOIN ist_Mitglied i ON i.O_ID = o.O_ID
@@ -602,6 +605,7 @@ WHERE s.Breite = (SELECT MAX(Breite) FROM Stadt);`,
       'Bestimmen Sie für jeden Kontinent (mit mindestens einer flächenmäßig erfassten Wüste) den Flächenanteil von Wüsten an der Kontinentfläche. Geben Sie `Name` des Kontinents und `Anteil` (in dieser Reihenfolge) absteigend sortiert nach `Anteil` aus. Hinweis: Gehen Sie davon aus, dass Länder/Wüsten vollständig zu Kontinenten gehören (`umfasst.Prozent` ignorieren), aber achten Sie auf die Einheiten (`Kontinent.Flaeche` in Mio. km², `Wueste.Flaeche` in km²) und vermeiden Sie Mehrfachzählung über Landesteile!',
     expectedColumns: ['Name', 'Anteil'],
     orderMatters: true,
+    orderColumns: [{ index: 1, dir: 'desc' }],
     solutionSql: `WITH
 Wueste2Kontinent AS (
   SELECT DISTINCT gw.W_ID, u.K_ID
@@ -680,6 +684,7 @@ WHERE lm.locount <= 2 * so.socount;`,
       'Erstellen Sie eine Liste der fünf größten Wüsten (kleinster Rang = 1 für die größte Fläche). Geben Sie nur `Name` und `Rang` (in dieser Reihenfolge, ohne Fläche) aufsteigend sortiert nach `Rang` aus. Wüsten ohne Flächenangabe sollen ausgeschlossen werden.',
     expectedColumns: ['Name', 'Rang'],
     orderMatters: true,
+    orderColumns: [{ index: 1, dir: 'asc' }],
     solutionSql: `SELECT t.Name, t.Rang
 FROM (
   SELECT Name, RANK() OVER (ORDER BY Flaeche DESC) AS Rang
