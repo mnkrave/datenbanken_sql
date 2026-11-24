@@ -48,6 +48,8 @@ export interface Exercise {
   difficulty: Difficulty;
   topics: string[];
   prompt: string;
+  /** Optional LaTeX display formula (e.g. Relational Algebra expression from Übungsblatt) */
+  formulaLatex?: string;
   /** Clear specification of expected output columns, e.g. ["Name"] */
   expectedColumns: string[];
   /** Whether row order matters (true when ORDER BY is explicitly requested) */
@@ -71,6 +73,26 @@ export interface QueryResult {
   durationMs: number;
 }
 
+export interface SqlErrorExcerpt {
+  lineNumber: number;
+  lineText: string;
+  caretOffset: number;
+  caretLength: number;
+  prevLineNumber?: number;
+  prevLineText?: string;
+}
+
+export interface SqlErrorInfo {
+  rawMessage: string;
+  sqlState?: string;
+  title: string;
+  explanation: string;
+  fixSuggestion?: string;
+  line?: number;
+  column?: number;
+  excerpt?: SqlErrorExcerpt;
+}
+
 export type EvaluationStatus = 'correct' | 'wrong' | 'error' | 'sandbox';
 
 export interface EvaluationResult {
@@ -80,6 +102,7 @@ export interface EvaluationResult {
   headline: string;
   details: string[];
   errorMessage?: string;
+  errorInfo?: SqlErrorInfo;
 }
 
 export interface ProgressState {

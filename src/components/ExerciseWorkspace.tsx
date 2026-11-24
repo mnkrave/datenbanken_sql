@@ -7,12 +7,14 @@ import {
   Eye,
   Lightbulb,
   Sparkles,
+  Wrench,
   XCircle,
 } from 'lucide-react';
 import { SCHEMA_MAP } from '../data/schemas';
 import { evaluateExercise, runSandboxQuery } from '../engine/evaluator';
 import { getPhysicalTables } from '../engine/pgEngine';
 import type { EvaluationResult, Exercise } from '../types/sql';
+import { FormulaBlock, MathText } from './MathText';
 import { ResultTable } from './ResultTable';
 import { SchemaExplorer } from './SchemaExplorer';
 import { SqlEditor } from './SqlEditor';
@@ -59,7 +61,6 @@ export function ExerciseWorkspace({
     currentIdx >= 0 && currentIdx < playlist.length - 1 ? playlist[currentIdx + 1] : null;
   const isSolved = Boolean(solvedIds[exercise.id]);
 
-  // Sync editor state when switching exercises
   useEffect(() => {
     setSql(draftSql);
     setEvaluation(null);
@@ -108,6 +109,8 @@ export function ExerciseWorkspace({
       setIsRunning(false);
     }
   };
+
+  const errInfo = evaluation?.errorInfo;
 
   return (
     <div>
@@ -164,7 +167,13 @@ export function ExerciseWorkspace({
               {exercise.title}
             </h1>
 
-            <p className="task-prompt">{exercise.prompt}</p>
+            <p className="task-prompt">
+              <MathText text={exercise.prompt} />
+            </p>
+
+            {exercise.formulaLatex && (
+              <FormulaBlock latex={exercise.formulaLatex} />
+            )}
 
             <div className="spec-box">
               <span className="spec-item">
@@ -209,8 +218,8 @@ export function ExerciseWorkspace({
               <div className="details-body">
                 <ol style={{ margin: 0, paddingInlineStart: '1.2rem', fontSize: '0.88rem' }}>
                   {exercise.hints.map((hint, i) => (
-                    <li key={i} style={{ marginBlockEnd: '0.4rem' }}>
-                      {hint}
+                    <li key={i} style={{ marginBlockEnd: '0.45rem' }}>
+                      <MathText text={hint} />
                     </li>
                   ))}
                 </ol>
@@ -226,8 +235,14 @@ export function ExerciseWorkspace({
                 <pre className="solution-pre">
                   <code>{exercise.solutionSql}</code>
                 </pre>
-                <p style={{ margin: '0 0 0.75rem', fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
-                  {exercise.solutionExplanation}
+                <p
+                  style={{
+                    margin: '0 0 0.75rem',
+                    fontSize: '0.86rem',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  <MathText text={exercise.solutionExplanation} />
                 </p>
                 <button
                   type="button"
@@ -255,6 +270,7 @@ export function ExerciseWorkspace({
               }}
               tableNames={tableNames}
               isRunning={isRunning}
+              errorLine={evaluation?.status === 'error' ? errInfo?.line : undefined}
             />
           </section>
 
@@ -304,7 +320,54 @@ export function ExerciseWorkspace({
                     </div>
                   </div>
 
-                  {evaluation.errorMessage && (
+                  {/* Rich pedagogical SQL Error Coach card */}
+                  {errInfo && (
+                    <div className="error-coach">
+                      <p className="error-explanation">{errInfo.explanation}</p>
+
+                      {errInfo.excerpt && (
+                        <pre className="error-excerpt" aria-label="Fehlerstelle im SQL-Code">
+                          {errInfo.excerpt.prevLineNumber !== undefined && (
+                            <div className="error-excerpt-line error-excerpt-line--ctx">
+                              <span className="error-excerpt-num">
+                                {errInfo.excerpt.prevLineNumber}
+                              </span>
+                              <span>{errInfo.excerpt.prevLineText}</span>
+                            </div>
+                          )}
+                          <div className="error-excerpt-line error-excerpt-line--hit">
+                            <span className="error-excerpt-num">
+                              {errInfo.excerpt.lineNumber}
+                            </span>
+                            <span>{errInfo.excerpt.lineText}</span>
+                          </div>
+                          <div className="error-excerpt-line error-excerpt-caret-row">
+                            <span className="error-excerpt-num" aria-hidden="true" />
+                            <span className="error-caret">
+                              {' '.repeat(errInfo.excerpt.caretOffset)}
+                              {'^'.repeat(Math.max(1, errInfo.excerpt.caretLength))}
+                            </span>
+                          </div>
+                        </pre>
+                      )}
+
+                      {errInfo.fixSuggestion && (
+                        <div className="error-fix-box">
+                          <Wrench size={15} className="error-fix-icon" aria-hidden="true" />
+                          <div>
+                            <strong>Lösungstipp:</strong> {errInfo.fixSuggestion}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="error-raw-pg">
+                        PostgreSQL{errInfo.sqlState ? ` [${errInfo.sqlState}]` : ''}:{' '}
+                        <code>{errInfo.rawMessage}</code>
+                      </div>
+                    </div>
+                  )}
+
+                  {!errInfo && evaluation.errorMessage && (
                     <pre className="eval-error-pre">{evaluation.errorMessage}</pre>
                   )}
 

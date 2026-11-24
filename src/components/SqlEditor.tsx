@@ -1,5 +1,6 @@
 import { useId, useRef } from 'react';
-import { CheckCircle2, Play, RotateCcw, Terminal } from 'lucide-react';
+import { format as formatSql } from 'sql-formatter';
+import { AlignLeft, CheckCircle2, Play, RotateCcw, Terminal } from 'lucide-react';
 
 interface SqlEditorProps {
   value: string;
@@ -9,6 +10,7 @@ interface SqlEditorProps {
   onReset: () => void;
   tableNames: string[];
   isRunning: boolean;
+  errorLine?: number;
 }
 
 export function SqlEditor({
@@ -19,6 +21,7 @@ export function SqlEditor({
   onReset,
   tableNames,
   isRunning,
+  errorLine,
 }: SqlEditorProps) {
   const textareaId = useId();
   const hintId = useId();
@@ -41,6 +44,20 @@ export function SqlEditor({
       const pos = start + snippet.length;
       el.setSelectionRange(pos, pos);
     });
+  };
+
+  const handleFormat = () => {
+    if (!value.trim()) return;
+    try {
+      const formatted = formatSql(value, {
+        language: 'postgresql',
+        keywordCase: 'upper',
+        tabWidth: 2,
+      });
+      onChange(formatted);
+    } catch {
+      // If SQL is too malformed for sql-formatter, leave user input untouched
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -69,9 +86,17 @@ export function SqlEditor({
 
       <div className="sql-editor-frame">
         <div className="sql-line-numbers" aria-hidden="true">
-          {Array.from({ length: lineCount }, (_, i) => (
-            <div key={i + 1}>{i + 1}</div>
-          ))}
+          {Array.from({ length: lineCount }, (_, i) => {
+            const num = i + 1;
+            return (
+              <div
+                key={num}
+                className={errorLine === num ? 'sql-line-num--error' : undefined}
+              >
+                {num}
+              </div>
+            );
+          })}
         </div>
         <textarea
           ref={textareaRef}
@@ -127,6 +152,15 @@ export function SqlEditor({
         </div>
 
         <div className="editor-actions-right">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={handleFormat}
+            disabled={isRunning || !value.trim()}
+          >
+            <AlignLeft size={14} aria-hidden="true" />
+            Formatieren
+          </button>
           <button
             type="button"
             className="btn btn-ghost btn-sm"

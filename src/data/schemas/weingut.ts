@@ -107,7 +107,8 @@ export const weingutExercises: Exercise[] = [
 FROM Rebsorte
 WHERE Name = 'Merlot';`,
     hints: ['Eine einfache Selektion + Projektion auf der Tabelle Rebsorte genügt.'],
-    solutionExplanation: 'Entspricht direkt Π_Farbe(σ_Name=\'Merlot\'(Rebsorte)) aus Blatt 3.',
+    solutionExplanation:
+      'Entspricht direkt $\\Pi_{\\text{Farbe}}(\\sigma_{\\text{Name}=\\text{\'Merlot\'}}(\\text{Rebsorte}))$ aus Blatt 3.',
   },
   {
     id: 'weingut-2-bassermann-rebsorte',
@@ -175,8 +176,8 @@ WHERE NOT EXISTS (
       `SELECT r.Name FROM Rebsorte r LEFT JOIN Wein w ON r.Sorte = w.RSorte WHERE w.ID IS NULL;`,
     ],
     hints: [
-      'In der Relationalen Algebra ist das ein Anti-Join (▷). In SQL formulieren Sie das am sichersten mit WHERE NOT EXISTS.',
-      'Alternativ funktioniert auch ein LEFT JOIN mit WHERE w.ID IS NULL.',
+      'In der Relationalen Algebra ist das ein Anti-Join ($\\triangleright$). In SQL formulieren Sie das am sichersten mit `WHERE NOT EXISTS`.',
+      'Alternativ funktioniert auch ein `LEFT JOIN` mit `WHERE w.ID IS NULL`.',
     ],
     solutionExplanation:
       'Spätburgunder (Sorte 3) und Dornfelder (Sorte 5) werden von keinem Wein referenziert und erscheinen im Ergebnis.',

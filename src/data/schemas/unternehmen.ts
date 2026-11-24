@@ -89,7 +89,7 @@ export const unternehmenExercises: Exercise[] = [
     solutionSql: `SELECT AbteilNr, AbteilName
 FROM Abteilung;`,
     hints: ['Einfache Projektion auf die beiden gesuchten Spalten von Abteilung.'],
-    solutionExplanation: 'Entspricht direkt Π_{AbteilNr, AbteilName}(Abteilung).',
+    solutionExplanation: 'Entspricht direkt $\\Pi_{\\text{AbteilNr}, \\text{AbteilName}}(\\text{Abteilung})$.',
   },
   {
     id: 'unt-2-mannheim',

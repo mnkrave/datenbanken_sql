@@ -1,6 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { SCHEMA_MAP } from '../data/schemas';
-import type { QueryResult, SchemaId } from '../types/sql';
+import type { QueryResult, SchemaId, SqlErrorInfo } from '../types/sql';
+import { diagnoseSqlError, type RawPgError } from './sqlErrorCoach';
 
 const dbCache = new Map<SchemaId, Promise<PGlite>>();
 const tableListCache = new Map<SchemaId, string[]>();
@@ -36,12 +37,28 @@ function normalizeCellValue(val: unknown): string | number | boolean | null {
   return String(val);
 }
 
-/**
- * Strip leading/trailing whitespace and trailing semicolon(s) for single-statement execution.
- * Also supports multi-statement scripts via exec() inside a rolled-back transaction.
- */
-function cleanSql(raw: string): string {
-  return raw.trim().replace(/;+\s*$/, '');
+export class SqlExecutionError extends Error {
+  readonly rawPg: RawPgError;
+  constructor(rawPg: RawPgError) {
+    super(rawPg.message);
+    this.name = 'SqlExecutionError';
+    this.rawPg = rawPg;
+  }
+}
+
+function extractPgError(err: unknown, leadingOffset: number): RawPgError {
+  if (err && typeof err === 'object') {
+    const rec = err as Record<string, unknown>;
+    const rawPos = rec.position !== undefined ? Number(rec.position) : NaN;
+    return {
+      message: typeof rec.message === 'string' ? rec.message : String(err),
+      code: typeof rec.code === 'string' ? rec.code : undefined,
+      position: Number.isFinite(rawPos) && rawPos > 0 ? rawPos + leadingOffset : undefined,
+      hint: typeof rec.hint === 'string' ? rec.hint : undefined,
+      detail: typeof rec.detail === 'string' ? rec.detail : undefined,
+    };
+  }
+  return { message: String(err) };
 }
 
 /**
@@ -49,9 +66,14 @@ function cleanSql(raw: string): string {
  * so even accidental DML/DDL cannot corrupt the practice database.
  */
 export async function executeQuery(schemaId: SchemaId, rawSql: string): Promise<QueryResult> {
-  const cleaned = cleanSql(rawSql);
+  const trimmedStart = rawSql.trimStart();
+  const leadingOffset = rawSql.length - trimmedStart.length;
+  const cleaned = trimmedStart.replace(/;+\s*$/, '').trimEnd();
+
   if (!cleaned) {
-    throw new Error('Bitte gib zuerst eine SQL-Abfrage ein.');
+    throw new SqlExecutionError({
+      message: 'Leere Abfrage: Bitte gib zuerst eine SQL-Abfrage ein.',
+    });
   }
 
   const db = await getSchemaDb(schemaId);
@@ -59,13 +81,13 @@ export async function executeQuery(schemaId: SchemaId, rawSql: string): Promise<
 
   await db.exec('BEGIN');
   try {
-    // Set a conservative statement timeout (3 seconds) to protect against runaway WITH RECURSIVE cycles
+    // Protect against runaway WITH RECURSIVE cycles
     await db.exec("SET LOCAL statement_timeout = '3000ms'");
 
     const results = await db.exec(cleaned, { rowMode: 'array' });
-    // Take the last statement that produced columns (allows e.g. CREATE TEMP VIEW ...; SELECT ...;)
     const selectResult =
-      [...results].reverse().find((r) => r.fields && r.fields.length > 0) ?? results[results.length - 1];
+      [...results].reverse().find((r) => r.fields && r.fields.length > 0) ??
+      results[results.length - 1];
 
     const durationMs = Math.max(
       1,
@@ -90,6 +112,8 @@ export async function executeQuery(schemaId: SchemaId, rawSql: string): Promise<
       rowCount: rows.length,
       durationMs,
     };
+  } catch (err) {
+    throw new SqlExecutionError(extractPgError(err, leadingOffset));
   } finally {
     try {
       await db.exec('ROLLBACK');
@@ -117,7 +141,6 @@ export async function getTablePreview(
   tableName: string,
   limit = 25
 ): Promise<QueryResult> {
-  // Validate against known physical table names to prevent injection
   const validTables = await getPhysicalTables(schemaId);
   const match = validTables.find((t) => t.toLowerCase() === tableName.toLowerCase());
   if (!match) {
@@ -126,25 +149,22 @@ export async function getTablePreview(
   return executeQuery(schemaId, `SELECT * FROM "${match}" LIMIT ${limit};`);
 }
 
-export function formatSqlError(err: unknown): { message: string; hint?: string } {
-  const raw = err instanceof Error ? err.message : String(err);
-  let hint: string | undefined;
+export async function buildSqlErrorInfo(
+  rawSql: string,
+  schemaId: SchemaId,
+  err: unknown
+): Promise<SqlErrorInfo> {
+  const rawPg: RawPgError =
+    err instanceof SqlExecutionError
+      ? err.rawPg
+      : { message: err instanceof Error ? err.message : String(err) };
 
-  if (/column ".*" does not exist/i.test(raw)) {
-    hint =
-      'Tipp: In Standard-SQL / PostgreSQL stehen Zeichenketten in einfachen Anführungszeichen (\'Text\'), nicht in doppelten ("Text") — doppelte Anführungszeichen bezeichnen Spaltennamen! Prüfe außerdem die exakte Schreibweise in der Schema-Übersicht.';
-  } else if (/statement timeout/i.test(raw)) {
-    hint =
-      'Zeitüberschreitung (3s): Falls du WITH RECURSIVE nutzt, prüfe auf Endlosschleifen/Zyklen (z. B. UNION statt UNION ALL oder manager_id <> employee_id).';
-  } else if (/must appear in the GROUP BY clause/i.test(raw)) {
-    hint =
-      'Tipp: Jede nicht-aggregierte Spalte im SELECT muss auch in der GROUP BY-Klausel aufgeführt werden (wie in Kap. 4 der Vorlesung besprochen).';
-  } else if (/ambiguous/i.test(raw)) {
-    hint =
-      'Tipp: Eine Spalte (z. B. Name oder G_ID) kommt in mehreren gejointen Tabellen vor. Qualifiziere sie mit dem Tabellenalias (z. B. s.Name).';
-  } else if (/syntax error/i.test(raw)) {
-    hint = 'Prüfe SQL-Schlüsselwörter, Kommas zwischen Spalten und schließende Klammern.';
+  let tables: string[] = [];
+  try {
+    tables = await getPhysicalTables(schemaId);
+  } catch {
+    tables = [];
   }
 
-  return { message: raw, hint };
+  return diagnoseSqlError(rawSql, schemaId, tables, rawPg);
 }

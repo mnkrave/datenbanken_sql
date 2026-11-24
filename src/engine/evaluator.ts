@@ -1,5 +1,5 @@
 import type { EvaluationResult, Exercise, QueryResult } from '../types/sql';
-import { executeQuery, formatSqlError } from './pgEngine';
+import { buildSqlErrorInfo, executeQuery } from './pgEngine';
 
 const NUMERIC_RE = /^[+-]?(\d+(\.\d+)?|\.\d+)$/;
 
@@ -8,7 +8,6 @@ function normalizeForCompare(val: string | number | boolean | null): string {
   if (typeof val === 'boolean') return val ? 'B:true' : 'B:false';
   if (typeof val === 'number') {
     if (!Number.isFinite(val)) return `N:${val}`;
-    // Round to 4 decimal places to prevent floating-point noise
     const rounded = Math.abs(val) < 1e-9 ? 0 : Math.round(val * 10000) / 10000;
     return `N:${rounded}`;
   }
@@ -55,7 +54,6 @@ function compareResults(
   const userKeys = user.rows.map(serializeRow);
   const expectedKeys = expected.rows.map(serializeRow);
 
-  // Check exact match according to orderMatters
   const userSorted = [...userKeys].sort();
   const expectedSorted = [...expectedKeys].sort();
 
@@ -94,10 +92,8 @@ function compareResults(
     };
   }
 
-  // Diagnostic feedback when rows do not match
   const details: string[] = [];
 
-  // Check if user just forgot DISTINCT
   const userUnique = [...new Set(userKeys)].sort();
   const expectedUnique = [...new Set(expectedKeys)].sort();
   const sameUniqueSet =
@@ -121,7 +117,6 @@ function compareResults(
     );
   }
 
-  // Compute missing / extra counts
   const expectedMap = new Map<string, number>();
   for (const k of expectedKeys) expectedMap.set(k, (expectedMap.get(k) ?? 0) + 1);
   let extraCount = 0;
@@ -140,10 +135,11 @@ function compareResults(
     details.push(`${missingCount} erwartete Zeile(n) fehlen in deinem Ergebnis.`);
   }
   if (extraCount > 0) {
-    details.push(`${extraCount} unerwartete bzw. abweichende Zeile(n) sind in deinem Ergebnis enthalten.`);
+    details.push(
+      `${extraCount} unerwartete bzw. abweichende Zeile(n) sind in deinem Ergebnis enthalten.`
+    );
   }
 
-  // Check if columns might be swapped
   if (expected.columns.length === 2 && user.rowCount === expected.rowCount && user.rowCount > 0) {
     const swappedKeys = user.rows.map((r) => serializeRow([r[1], r[0]])).sort();
     if (swappedKeys.every((v, i) => v === expectedSorted[i])) {
@@ -168,12 +164,13 @@ export async function evaluateExercise(
   try {
     expectedResult = await executeQuery(exercise.schemaId, exercise.solutionSql);
   } catch (err) {
-    const formatted = formatSqlError(err);
+    const errorInfo = await buildSqlErrorInfo(exercise.solutionSql, exercise.schemaId, err);
     return {
       status: 'error',
       headline: 'Interner Fehler bei der Musterlösung',
-      details: [formatted.message],
-      errorMessage: formatted.message,
+      details: [errorInfo.explanation],
+      errorMessage: errorInfo.rawMessage,
+      errorInfo,
     };
   }
 
@@ -181,13 +178,16 @@ export async function evaluateExercise(
   try {
     userResult = await executeQuery(exercise.schemaId, userSql);
   } catch (err) {
-    const formatted = formatSqlError(err);
+    const errorInfo = await buildSqlErrorInfo(userSql, exercise.schemaId, err);
     return {
       status: 'error',
       expectedResult,
-      headline: 'SQL-Syntax- oder Laufzeitfehler',
-      details: formatted.hint ? [formatted.hint] : [],
-      errorMessage: formatted.message,
+      headline: errorInfo.line
+        ? `${errorInfo.title} (Zeile ${errorInfo.line}, Spalte ${errorInfo.column})`
+        : errorInfo.title,
+      details: [],
+      errorMessage: errorInfo.rawMessage,
+      errorInfo,
     };
   }
 
@@ -214,12 +214,15 @@ export async function runSandboxQuery(
       details: ['Nur ausgeführt ohne Bewertung — klicke „Prüfen“, um deine Lösung abzugeben.'],
     };
   } catch (err) {
-    const formatted = formatSqlError(err);
+    const errorInfo = await buildSqlErrorInfo(userSql, exercise.schemaId, err);
     return {
       status: 'error',
-      headline: 'SQL-Fehler in der Sandbox',
-      details: formatted.hint ? [formatted.hint] : [],
-      errorMessage: formatted.message,
+      headline: errorInfo.line
+        ? `${errorInfo.title} (Zeile ${errorInfo.line}, Spalte ${errorInfo.column})`
+        : errorInfo.title,
+      details: [],
+      errorMessage: errorInfo.rawMessage,
+      errorInfo,
     };
   }
 }

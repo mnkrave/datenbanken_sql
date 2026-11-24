@@ -139,7 +139,7 @@ ORDER BY t.Preis ASC;`,
       'Filtern Sie auf vonBhf = \'Mannheim Hbf\' und nachBhf = \'Karlsruhe Hbf\'.',
     ],
     solutionExplanation:
-      'Entspricht Π_{ZugNr, Zugtyp, Preis}(σ_{vonBhf=\'Mannheim Hbf\' ∧ nachBhf=\'Karlsruhe Hbf\'}(Teilstrecke ⋈ Zug)) aus Blatt 3.',
+      'Entspricht $\\Pi_{\\text{ZugNr}, \\text{Zugtyp}, \\text{Preis}}(\\sigma_{\\text{vonBhf}=\\text{\'Mannheim Hbf\'} \\land \\text{nachBhf}=\\text{\'Karlsruhe Hbf\'}}(\\text{Teilstrecke} \\bowtie \\text{Zug}))$ aus Blatt 3.',
   },
   {
     id: 'bahn-2-zugtypen-ma-ffm',
@@ -215,8 +215,8 @@ WHERE NOT EXISTS (
 );`,
     ],
     hints: [
-      'In der Relationalen Algebra entspricht das Π_{vonBhf,nachBhf,Zugtyp}(Teilstrecke ⋈ Zug) ÷ Π_{Zugtyp}(Zug).',
-      'In SQL: Gruppieren Sie nach (vonBhf, nachBhf) und prüfen Sie HAVING COUNT(DISTINCT z.Zugtyp) = (SELECT COUNT(DISTINCT Zugtyp) FROM Zug) — oder nutzen Sie doppeltes NOT EXISTS.',
+      'In der Relationalen Algebra entspricht das $\\Pi_{\\text{vonBhf},\\text{nachBhf},\\text{Zugtyp}}(\\text{Teilstrecke} \\bowtie \\text{Zug}) \\div \\Pi_{\\text{Zugtyp}}(\\text{Zug})$.',
+      'In SQL: Gruppieren Sie nach `(vonBhf, nachBhf)` und prüfen Sie `HAVING COUNT(DISTINCT z.Zugtyp) = (SELECT COUNT(DISTINCT Zugtyp) FROM Zug)` — oder nutzen Sie doppeltes `NOT EXISTS`.',
     ],
     solutionExplanation:
       'Es existieren 3 Zugtypen (ICE, IC, RE). Nur auf der Teilstrecke Mannheim Hbf → Karlsruhe Hbf verkehren alle drei Zugtypen.',

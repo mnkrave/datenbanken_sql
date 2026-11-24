@@ -215,7 +215,8 @@ export const uniExercises: Exercise[] = [
     difficulty: 'Basis',
     topics: ['JOIN', 'DISTINCT', 'Relationale Algebra → SQL'],
     prompt:
-      'Übersetzen Sie den algebraischen Ausdruck Π_Name(Studenten ⋈ hoeren ⋈ σ_Titel=\'Logik\'(Vorlesungen)) in SQL: Geben Sie die Namen (ohne Duplikate) aller Studenten aus, die die Vorlesung \'Logik\' besuchen.',
+      'Übersetzen Sie den folgenden algebraischen Ausdruck in SQL: Geben Sie die Namen (ohne Duplikate) aller Studenten aus, die die Vorlesung `\'Logik\'` besuchen.',
+    formulaLatex: String.raw`\Pi_{\text{Name}}\!\left(\text{Studenten} \bowtie \text{hoeren} \bowtie \sigma_{\text{Titel}=\text{'Logik'}}(\text{Vorlesungen})\right)`,
     expectedColumns: ['Name'],
     orderMatters: false,
     requiresDistinct: true,
@@ -228,11 +229,11 @@ WHERE v.Titel = 'Logik';`,
       `SELECT DISTINCT s.Name FROM Studenten s NATURAL JOIN hoeren h NATURAL JOIN Vorlesungen v WHERE v.Titel = 'Logik';`,
     ],
     hints: [
-      'Verknüpfen Sie Studenten über hoeren (MatrNr) mit Vorlesungen (VorlNr).',
-      'Filtern Sie mit WHERE v.Titel = \'Logik\' (einfache Anführungszeichen!) und denken Sie an DISTINCT.',
+      'Verknüpfen Sie `Studenten` über `hoeren` (`MatrNr`) mit `Vorlesungen` (`VorlNr`).',
+      'Filtern Sie mit `WHERE v.Titel = \'Logik\'` (einfache Anführungszeichen!) und denken Sie an `DISTINCT`.',
     ],
     solutionExplanation:
-      'Da die Relationale Algebra Mengen- und SQL Multimengensemantik verwendet, gehört bei der Übersetzung immer SELECT DISTINCT dazu. Drei-Wege-Join über MatrNr und VorlNr (oder NATURAL JOIN).',
+      'Da die Relationale Algebra Mengen- und SQL Multimengensemantik verwendet, gehört bei der Übersetzung immer `SELECT DISTINCT` dazu. Drei-Wege-Join über `MatrNr` und `VorlNr` (oder `NATURAL JOIN`).',
   },
   {
     id: 'uni-2-pruefende-profs',
@@ -242,7 +243,8 @@ WHERE v.Titel = 'Logik';`,
     difficulty: 'Basis',
     topics: ['Semi-Join', 'EXISTS / IN', 'DISTINCT'],
     prompt:
-      'Übersetzen Sie Π_Name(Professoren ⋉ pruefen) in SQL: Geben Sie die Namen (ohne Duplikate) aller Professoren aus, die mindestens eine Prüfung abgenommen haben.',
+      'Übersetzen Sie den folgenden Semi-Join-Ausdruck in SQL: Geben Sie die Namen (ohne Duplikate) aller Professoren aus, die mindestens eine Prüfung abgenommen haben.',
+    formulaLatex: String.raw`\Pi_{\text{Name}}\!\left(\text{Professoren} \ltimes \text{pruefen}\right)`,
     expectedColumns: ['Name'],
     orderMatters: false,
     requiresDistinct: true,
@@ -258,11 +260,11 @@ WHERE EXISTS (
       `SELECT DISTINCT Name FROM Professoren WHERE PersNr IN (SELECT PersNr FROM pruefen);`,
     ],
     hints: [
-      'Ein Semi-Join lässt sich in SQL per EXISTS, IN oder als INNER JOIN mit DISTINCT formulieren.',
-      'Beachten Sie: Ein Professor kann mehrere Prüfungen abnehmen — ohne DISTINCT bzw. Semi-Join entstehen Duplikate.',
+      'Ein Semi-Join ($\\ltimes$) lässt sich in SQL per `EXISTS`, `IN` oder als `INNER JOIN` mit `DISTINCT` formulieren.',
+      'Beachten Sie: Ein Professor kann mehrere Prüfungen abnehmen — ohne `DISTINCT` bzw. Semi-Join entstehen Duplikate.',
     ],
     solutionExplanation:
-      'WHERE EXISTS (...), WHERE PersNr IN (...) und INNER JOIN + DISTINCT liefern hier alle exakt dieselbe Menge an Professorennamen.',
+      '`WHERE EXISTS (...)`, `WHERE PersNr IN (...)` und `INNER JOIN` + `DISTINCT` liefern hier alle exakt dieselbe Menge an Professorennamen.',
   },
   {
     id: 'uni-3-ungepruefte-studenten',
@@ -272,7 +274,8 @@ WHERE EXISTS (
     difficulty: 'Mittel',
     topics: ['EXCEPT', 'NOT EXISTS', 'Anti-Join'],
     prompt:
-      'Übersetzen Sie Π_MatrNr(Studenten) \\ Π_MatrNr(pruefen) in SQL: Geben Sie die MatrNr aller Studenten aus, die noch keine Prüfung abgelegt haben.',
+      'Übersetzen Sie den folgenden Differenz-Ausdruck in SQL: Geben Sie die `MatrNr` aller Studenten aus, die noch keine Prüfung abgelegt haben.',
+    formulaLatex: String.raw`\Pi_{\text{MatrNr}}(\text{Studenten}) \setminus \Pi_{\text{MatrNr}}(\text{pruefen})`,
     expectedColumns: ['MatrNr'],
     orderMatters: false,
     requiresDistinct: true,
@@ -288,11 +291,11 @@ WHERE NOT EXISTS (
       `SELECT MatrNr FROM Studenten WHERE MatrNr NOT IN (SELECT MatrNr FROM pruefen);`,
     ],
     hints: [
-      'Nutzen Sie EXCEPT, NOT EXISTS oder NOT IN.',
-      'Klausurtipp: NOT EXISTS ist robuster als NOT IN, falls die Unterabfrage jemals NULL-Werte liefern könnte.',
+      'Nutzen Sie `EXCEPT`, `NOT EXISTS` oder `NOT IN` (Unterabfrage immer in runde Klammern setzen!).',
+      'Klausurtipp: `NOT EXISTS` ist robuster als `NOT IN`, falls die Unterabfrage jemals `NULL`-Werte liefern könnte.',
     ],
     solutionExplanation:
-      'Die Mengendifferenz entspricht direkt EXCEPT (welches in SQL standardmäßig Duplikate eliminiert) oder einer korrelierten NOT EXISTS-Unterabfrage.',
+      'Die Mengendifferenz ($\\setminus$) entspricht direkt `EXCEPT` (welches in SQL standardmäßig Duplikate eliminiert) oder einer korrelierten `NOT EXISTS`-Unterabfrage.',
   },
   {
     id: 'uni-4-max-sws',
@@ -302,7 +305,8 @@ WHERE NOT EXISTS (
     difficulty: 'Mittel',
     topics: ['Unterabfrage', 'MAX', 'NOT EXISTS'],
     prompt:
-      'Übersetzen Sie Π_VorlNr(Vorlesungen) \\ Π_v1.VorlNr(ρ_v1(Vorlesungen) ⋈_{v1.SWS < v2.SWS} ρ_v2(Vorlesungen)) in SQL: Geben Sie die VorlNr aller Vorlesungen mit der maximalen SWS-Anzahl aus.',
+      'Übersetzen Sie den folgenden Ausdruck der Relationalen Algebra in SQL: Geben Sie die `VorlNr` aller Vorlesungen mit der maximalen SWS-Anzahl aus.',
+    formulaLatex: String.raw`\Pi_{\text{VorlNr}}(\text{Vorlesungen}) \setminus \Pi_{v_1.\text{VorlNr}}\!\left(\rho_{v_1}(\text{Vorlesungen}) \bowtie_{v_1.\text{SWS} < v_2.\text{SWS}} \rho_{v_2}(\text{Vorlesungen})\right)`,
     expectedColumns: ['VorlNr'],
     orderMatters: false,
     requiresDistinct: true,
@@ -315,10 +319,10 @@ WHERE SWS = (SELECT MAX(SWS) FROM Vorlesungen);`,
     ],
     hints: [
       'Der algebraische Ausdruck entfernt alle Vorlesungen, zu denen es eine Vorlesung mit strikt größeren SWS gibt — übrig bleiben die Maxima.',
-      'In SQL können Sie entweder mit = (SELECT MAX(SWS) ...) oder mit NOT EXISTS (... WHERE v.SWS < v2.SWS) arbeiten.',
+      'In SQL können Sie entweder mit `= (SELECT MAX(SWS) ...)` oder mit `NOT EXISTS (... WHERE v.SWS < v2.SWS)` arbeiten.',
     ],
     solutionExplanation:
-      'Die Maximum-Bestimmung ohne Aggregat in der Relationalen Algebra entspricht in SQL entweder SWS = (SELECT MAX(SWS) FROM Vorlesungen), >= ALL oder der direkten NOT EXISTS-Übersetzung.',
+      'Die Maximum-Bestimmung ohne Aggregat in der Relationalen Algebra entspricht in SQL entweder `SWS = (SELECT MAX(SWS) FROM Vorlesungen)`, `>= ALL` oder der direkten `NOT EXISTS`-Übersetzung.',
   },
   {
     id: 'uni-5-bioethik-allquantor',
@@ -328,7 +332,7 @@ WHERE SWS = (SELECT MAX(SWS) FROM Vorlesungen);`,
     difficulty: 'Klausurniveau',
     topics: ['Allquantor', 'Doppeltes NOT EXISTS', 'Tupelkalkül → SQL'],
     prompt:
-      'Geben Sie die Namen (ohne Duplikate) aller Studenten an, die die Vorlesung \'Bioethik\' besuchen UND alle Vorlesungen besucht haben, die direkt von \'Bioethik\' vorausgesetzt werden.',
+      'Geben Sie die Namen (ohne Duplikate) aller Studenten an, die die Vorlesung `\'Bioethik\'` besuchen UND alle Vorlesungen besucht haben, die direkt von `\'Bioethik\'` vorausgesetzt werden.',
     expectedColumns: ['Name'],
     orderMatters: false,
     requiresDistinct: true,
@@ -349,8 +353,8 @@ WHERE s.MatrNr = h.MatrNr
       )
   );`,
     hints: [
-      'Formen Sie den Allquantor ∀vs (vs.Nachfolger = v.VorlNr ⇒ ∃x ∈ hoeren ...) mittels De Morgan um: ¬∃vs (vs.Nachfolger = v.VorlNr ∧ ¬∃x ∈ hoeren ...).',
-      'Übersetzen Sie das in ein doppeltes NOT EXISTS: „Es gibt keine direkte Voraussetzung von Bioethik, die der Student nicht gehört hat.“',
+      'Formen Sie den Allquantor $\\forall vs\\,(vs.\\text{Nachfolger} = v.\\text{VorlNr} \\Rightarrow \\exists x \\in \\text{hoeren}\\dots)$ mittels De Morgan um zu $\\neg\\exists vs\\,(vs.\\text{Nachfolger} = v.\\text{VorlNr} \\land \\neg\\exists x \\in \\text{hoeren}\\dots)$.',
+      'Übersetzen Sie das in ein doppeltes `NOT EXISTS`: „Es gibt keine direkte Voraussetzung von Bioethik, die der Student nicht gehört hat.“',
     ],
     solutionExplanation:
       'Klassiker aus Blatt 4 Aufg. 3: Aristoxenos hört zwar Bioethik, hat aber die direkte Voraussetzung Ethik (5041) nicht gehört — nur Carnap erfüllt die Allquantor-Bedingung.',

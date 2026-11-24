@@ -1473,3 +1473,145 @@ dialog.confirm-dialog::backdrop {
   color: var(--text-secondary);
   font-size: 0.9rem;
 }
+
+/* ==========================================================================
+   KaTeX Relational Algebra Formula Card & Inline Formatting
+   ========================================================================== */
+.formula-card {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1.05rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--accent);
+}
+
+.formula-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  margin-block-end: 0.35rem;
+}
+
+.formula-math {
+  overflow-x: auto;
+  padding-block: 0.2rem;
+  color: var(--text-primary);
+}
+
+.formula-math .katex-display {
+  margin: 0.15rem 0;
+  text-align: start;
+}
+
+.formula-math .katex {
+  font-size: 1.08rem;
+}
+
+.inline-math .katex {
+  font-size: 1em;
+}
+
+.inline-code {
+  font-family: var(--font-mono);
+  font-size: 0.84em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+}
+
+/* ==========================================================================
+   Pedagogical SQL Error Coach & Caret Excerpt
+   ========================================================================== */
+.sql-line-num--error {
+  color: var(--danger);
+  font-weight: 800;
+  background: var(--danger-soft);
+  border-radius: 3px;
+}
+
+.error-coach {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-block-start: 0.45rem;
+}
+
+.error-explanation {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.error-excerpt {
+  margin: 0;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-code);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  font-family: var(--font-mono);
+  font-size: 0.81rem;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+.error-excerpt-line {
+  display: flex;
+  gap: 0.75rem;
+  white-space: pre;
+}
+
+.error-excerpt-line--ctx {
+  opacity: 0.65;
+}
+
+.error-excerpt-line--hit {
+  font-weight: 600;
+}
+
+.error-excerpt-num {
+  min-inline-size: 2.2ch;
+  text-align: end;
+  color: var(--text-muted);
+  user-select: none;
+  border-inline-end: 1px solid var(--border);
+  padding-inline-end: 0.55rem;
+}
+
+.error-caret {
+  color: var(--danger);
+  font-weight: 800;
+}
+
+.error-fix-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+.error-fix-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-block-start: 0.15rem;
+}
+
+.error-raw-pg {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+}
+
+.error-raw-pg code {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+}
