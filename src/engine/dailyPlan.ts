@@ -2,6 +2,26 @@ import { ALL_SCHEMAS, getExerciseById, getExercisesForSchema } from '../data/sch
 import type { Exercise, ProgressState } from '../types/sql';
 
 const STORAGE_KEY = 'dbs1_sql_trainer_progress_v1';
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const SAFE_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$/;
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const MAX_DRAFT_LENGTH = 20_000;
+
+function isSafeId(val: unknown): val is string {
+  return typeof val === 'string' && SAFE_ID_RE.test(val) && !FORBIDDEN_KEYS.has(val);
+}
+
+function isValidDateKey(val: unknown): val is string {
+  if (typeof val !== 'string' || !DATE_KEY_RE.test(val)) return false;
+  const [y, m, d] = val.split('-').map(Number);
+  if (y < 2020 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return (
+    dt.getUTCFullYear() === y &&
+    dt.getUTCMonth() === m - 1 &&
+    dt.getUTCDate() === d
+  );
+}
 
 export function getTodayKey(date = new Date()): string {
   const y = date.getFullYear();
@@ -82,14 +102,41 @@ export function loadProgress(): ProgressState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return emptyProgress();
-    const parsed = JSON.parse(raw) as Partial<ProgressState>;
+    const parsed = JSON.parse(raw) as unknown;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return emptyProgress();
+    }
+    const rec = parsed as Record<string, unknown>;
+
+    const solvedIds: Record<string, string> = {};
+    if (
+      typeof rec.solvedIds === 'object' &&
+      rec.solvedIds !== null &&
+      !Array.isArray(rec.solvedIds)
+    ) {
+      for (const [k, v] of Object.entries(rec.solvedIds)) {
+        if (isSafeId(k) && isValidDateKey(v)) {
+          solvedIds[k] = v;
+        }
+      }
+    }
+
+    const drafts: Record<string, string> = {};
+    if (typeof rec.drafts === 'object' && rec.drafts !== null && !Array.isArray(rec.drafts)) {
+      for (const [k, v] of Object.entries(rec.drafts)) {
+        if (isSafeId(k) && typeof v === 'string') {
+          drafts[k] = v.slice(0, MAX_DRAFT_LENGTH);
+        }
+      }
+    }
+
     return {
-      solvedIds: parsed.solvedIds ?? {},
-      activeDays: Array.isArray(parsed.activeDays) ? parsed.activeDays : [],
-      completedDailyDates: Array.isArray(parsed.completedDailyDates)
-        ? parsed.completedDailyDates
+      solvedIds,
+      activeDays: Array.isArray(rec.activeDays) ? rec.activeDays.filter(isValidDateKey) : [],
+      completedDailyDates: Array.isArray(rec.completedDailyDates)
+        ? rec.completedDailyDates.filter(isValidDateKey)
         : [],
-      drafts: parsed.drafts ?? {},
+      drafts,
     };
   } catch {
     return emptyProgress();

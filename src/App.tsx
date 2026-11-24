@@ -219,6 +219,9 @@ export function App({ clerkEnabled = false }: AppProps) {
   }).current;
 
   const handleSignedOut = useRef(() => {
+    const fresh = resetAllProgress();
+    progressRef.current = fresh;
+    setProgress(fresh);
     setFrozenDailyIds(null);
     setSyncStatus('local');
   }).current;

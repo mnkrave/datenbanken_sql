@@ -68,6 +68,15 @@ export interface ExecuteOptions {
   fallbackVerificationSql?: string;
 }
 
+function createTxGuardToken(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint8Array(12);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+}
+
 /**
  * Executes an arbitrary user or reference SQL query inside a rolled-back transaction
  * so even accidental DML/DDL cannot corrupt the practice database.
@@ -89,11 +98,15 @@ export async function executeQuery(
 
   const db = await getSchemaDb(schemaId);
   const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const txGuard = createTxGuardToken();
+  let resetInstance = false;
 
   await db.exec('BEGIN');
   try {
-    // Protect against runaway WITH RECURSIVE cycles
-    await db.exec("SET LOCAL statement_timeout = '3000ms'");
+    // Protect against runaway WITH RECURSIVE cycles and detect transaction-escape attempts
+    await db.exec(
+      `SET LOCAL statement_timeout = '3000ms'; SET LOCAL app.tx_guard = '${txGuard}';`
+    );
 
     if (options?.setupSql) {
       try {
@@ -165,9 +178,28 @@ export async function executeQuery(
     };
   } finally {
     try {
-      await db.exec('ROLLBACK');
+      const guardRes = await db.query<{ guard: string | null }>(
+        `SELECT current_setting('app.tx_guard', true) AS guard`
+      );
+      if (guardRes.rows[0]?.guard !== txGuard) {
+        resetInstance = true;
+      }
     } catch {
-      // Ignore rollback errors if connection already aborted
+      // Aborted transaction (25P02) cannot run SELECT until ROLLBACK completes
+    }
+
+    if (resetInstance) {
+      dbCache.delete(schemaId);
+      tableListCache.delete(schemaId);
+      db.close().catch(() => {});
+    } else {
+      try {
+        await db.exec('ROLLBACK');
+      } catch {
+        dbCache.delete(schemaId);
+        tableListCache.delete(schemaId);
+        db.close().catch(() => {});
+      }
     }
   }
 }
@@ -195,7 +227,9 @@ export async function getTablePreview(
   if (!match) {
     throw new Error(`Tabelle "${tableName}" existiert in diesem Schema nicht.`);
   }
-  return executeQuery(schemaId, `SELECT * FROM "${match}" LIMIT ${limit};`);
+  const safeLimit = Math.min(Math.max(1, Math.trunc(Number(limit) || 25)), 500);
+  const escapedIdent = match.replace(/"/g, '""');
+  return executeQuery(schemaId, `SELECT * FROM "${escapedIdent}" LIMIT ${safeLimit};`);
 }
 
 export async function buildSqlErrorInfo(

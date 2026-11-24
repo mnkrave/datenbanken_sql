@@ -11,6 +11,8 @@ export function FormulaBlock({ latex, label = 'Algebraischer Ausdruck' }: Formul
     displayMode: true,
     throwOnError: false,
     strict: false,
+    trust: false,
+    maxExpand: 500,
   });
 
   return (
@@ -80,6 +82,8 @@ export function MathText({ text }: MathTextProps) {
           displayMode: false,
           throwOnError: false,
           strict: false,
+          trust: false,
+          maxExpand: 500,
         });
         return (
           <span

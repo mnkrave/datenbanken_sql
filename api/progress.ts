@@ -11,14 +11,46 @@ interface ProgressPayload {
 }
 
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const SAFE_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$/;
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const ALLOWED_ACTIONS = new Set(['solve', 'draft', 'ensure_daily_session', 'merge_local']);
+
+const MAX_BODY_BYTES = 512 * 1024;
 const MAX_SQL_LENGTH = 20_000;
+const MAX_MERGE_EXERCISES = 300;
+const MAX_MERGE_DAYS = 1000;
+const MAX_RAW_ENTRIES = 1500;
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return Response.json(body, {
+    status,
+    headers: {
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}
+
+function isPlainObject(val: unknown): val is Record<string, unknown> {
+  if (typeof val !== 'object' || val === null || Array.isArray(val)) return false;
+  const proto = Object.getPrototypeOf(val);
+  return proto === Object.prototype || proto === null;
+}
 
 function isValidDateKey(val: unknown): val is string {
-  return typeof val === 'string' && DATE_KEY_RE.test(val);
+  if (typeof val !== 'string' || !DATE_KEY_RE.test(val)) return false;
+  const [y, m, d] = val.split('-').map(Number);
+  if (y < 2020 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return (
+    dt.getUTCFullYear() === y &&
+    dt.getUTCMonth() === m - 1 &&
+    dt.getUTCDate() === d
+  );
 }
 
 function isValidId(val: unknown): val is string {
-  return typeof val === 'string' && val.length > 0 && val.length <= 120;
+  return typeof val === 'string' && SAFE_ID_RE.test(val) && !FORBIDDEN_KEYS.has(val);
 }
 
 async function fetchUserProgress(
@@ -54,6 +86,7 @@ async function fetchUserProgress(
 
   for (const row of progressRows) {
     const exId = String(row.exercise_id);
+    if (!isValidId(exId)) continue;
     if (typeof row.solved_date === 'string' && row.solved_date.length > 0) {
       solvedIds[exId] = row.solved_date;
     }
@@ -95,7 +128,7 @@ export async function GET(request: Request): Promise<Response> {
     const auth = await authenticateRequest(request);
     if (!auth) {
       metric('sql_trainer.progress.requests', 1, { method: 'GET', outcome: 'unauthorized' });
-      return Response.json({ error: 'Nicht angemeldet' }, { status: 401 });
+      return jsonResponse({ error: 'Nicht angemeldet' }, 401);
     }
 
     await ensureSchema();
@@ -104,15 +137,13 @@ export async function GET(request: Request): Promise<Response> {
     const data = await fetchUserProgress(auth.userId, dateKey);
 
     metric('sql_trainer.progress.requests', 1, { method: 'GET', outcome: 'success' });
-    return Response.json(data, {
-      headers: { 'Cache-Control': 'no-store' },
-    });
+    return jsonResponse(data, 200);
   } catch (err) {
     console.error('[api/progress GET] error:', err);
     metric('sql_trainer.progress.requests', 1, { method: 'GET', outcome: 'error' });
-    return Response.json(
+    return jsonResponse(
       { error: 'Fortschritt konnte nicht geladen werden.' },
-      { status: 500 }
+      500
     );
   } finally {
     metric('sql_trainer.progress.duration_ms', performance.now() - startedAt, {
@@ -129,16 +160,70 @@ export async function POST(request: Request): Promise<Response> {
     const auth = await authenticateRequest(request);
     if (!auth) {
       metric('sql_trainer.progress.requests', 1, { method: 'POST', outcome: 'unauthorized' });
-      return Response.json({ error: 'Nicht angemeldet' }, { status: 401 });
+      return jsonResponse({ error: 'Nicht angemeldet' }, 401);
     }
 
-    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-    if (!body || typeof body.action !== 'string') {
+    const contentType = (request.headers.get('content-type') ?? '').trim().toLowerCase();
+    if (!contentType.startsWith('application/json')) {
+      metric('sql_trainer.progress.requests', 1, {
+        method: 'POST',
+        outcome: 'unsupported_media_type',
+      });
+      return jsonResponse({ error: 'Nicht unterstützter Content-Type' }, 415);
+    }
+
+    const contentLengthHeader = request.headers.get('content-length');
+    if (contentLengthHeader !== null) {
+      const contentLength = Number(contentLengthHeader);
+      if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
+        metric('sql_trainer.progress.requests', 1, {
+          method: 'POST',
+          outcome: 'payload_too_large',
+        });
+        return jsonResponse({ error: 'Anfrage zu groß' }, 413);
+      }
+    }
+
+    let rawText: string;
+    try {
+      rawText = await request.text();
+    } catch {
       metric('sql_trainer.progress.requests', 1, { method: 'POST', outcome: 'bad_request' });
-      return Response.json({ error: 'Ungültige Anfrage' }, { status: 400 });
+      return jsonResponse({ error: 'Ungültige Anfrage' }, 400);
     }
 
-    action = body.action;
+    if (Buffer.byteLength(rawText, 'utf8') > MAX_BODY_BYTES) {
+      metric('sql_trainer.progress.requests', 1, {
+        method: 'POST',
+        outcome: 'payload_too_large',
+      });
+      return jsonResponse({ error: 'Anfrage zu groß' }, 413);
+    }
+
+    let parsedBody: unknown;
+    try {
+      parsedBody = JSON.parse(rawText);
+    } catch {
+      metric('sql_trainer.progress.requests', 1, { method: 'POST', outcome: 'bad_request' });
+      return jsonResponse({ error: 'Ungültige Anfrage' }, 400);
+    }
+
+    if (!isPlainObject(parsedBody) || typeof parsedBody.action !== 'string') {
+      metric('sql_trainer.progress.requests', 1, { method: 'POST', outcome: 'bad_request' });
+      return jsonResponse({ error: 'Ungültige Anfrage' }, 400);
+    }
+
+    if (!ALLOWED_ACTIONS.has(parsedBody.action)) {
+      metric('sql_trainer.progress.requests', 1, {
+        method: 'POST',
+        action: 'invalid',
+        outcome: 'bad_request',
+      });
+      return jsonResponse({ error: 'Unbekannte Aktion.' }, 400);
+    }
+
+    const body = parsedBody;
+    action = parsedBody.action;
     await ensureSchema();
     const sql = getSql();
     const { userId } = auth;
@@ -146,9 +231,9 @@ export async function POST(request: Request): Promise<Response> {
     if (action === 'solve') {
       const { exerciseId, schemaId, dateKey, sqlText, dailyCompleted } = body;
       if (!isValidId(exerciseId) || !isValidDateKey(dateKey)) {
-        return Response.json(
+        return jsonResponse(
           { error: 'Ungültige exerciseId oder dateKey' },
-          { status: 400 }
+          400
         );
       }
       const safeSchemaId = isValidId(schemaId) ? schemaId : null;
@@ -188,13 +273,13 @@ export async function POST(request: Request): Promise<Response> {
         action: 'solve',
         outcome: 'success',
       });
-      return Response.json({ ok: true });
+      return jsonResponse({ ok: true }, 200);
     }
 
     if (action === 'draft') {
       const { exerciseId, schemaId, sqlText } = body;
       if (!isValidId(exerciseId) || typeof sqlText !== 'string') {
-        return Response.json({ error: 'Ungültiger Entwurf' }, { status: 400 });
+        return jsonResponse({ error: 'Ungültiger Entwurf' }, 400);
       }
       const safeSchemaId = isValidId(schemaId) ? schemaId : null;
       const safeSql = sqlText.slice(0, MAX_SQL_LENGTH);
@@ -215,17 +300,17 @@ export async function POST(request: Request): Promise<Response> {
         action: 'draft',
         outcome: 'success',
       });
-      return Response.json({ ok: true });
+      return jsonResponse({ ok: true }, 200);
     }
 
     if (action === 'ensure_daily_session') {
       const { dateKey, exerciseIds } = body;
       if (!isValidDateKey(dateKey) || !Array.isArray(exerciseIds)) {
-        return Response.json({ error: 'Ungültige Tages-Session' }, { status: 400 });
+        return jsonResponse({ error: 'Ungültige Tages-Session' }, 400);
       }
       const validIds = exerciseIds.filter((id): id is string => isValidId(id)).slice(0, 20);
       if (validIds.length === 0) {
-        return Response.json({ error: 'Leere Tages-Session' }, { status: 400 });
+        return jsonResponse({ error: 'Leere Tages-Session' }, 400);
       }
 
       await sql`
@@ -251,37 +336,58 @@ export async function POST(request: Request): Promise<Response> {
         action: 'ensure_daily_session',
         outcome: 'success',
       });
-      return Response.json({ dailySession: frozenIds });
+      return jsonResponse({ dailySession: frozenIds }, 200);
     }
 
     if (action === 'merge_local') {
-      const rawSolved =
-        body.solvedIds && typeof body.solvedIds === 'object'
-          ? (body.solvedIds as Record<string, unknown>)
-          : {};
-      const rawDrafts =
-        body.drafts && typeof body.drafts === 'object'
-          ? (body.drafts as Record<string, unknown>)
-          : {};
+      if (
+        (body.solvedIds !== undefined && !isPlainObject(body.solvedIds)) ||
+        (body.drafts !== undefined && !isPlainObject(body.drafts)) ||
+        (body.activeDays !== undefined && !Array.isArray(body.activeDays)) ||
+        (body.completedDailyDates !== undefined && !Array.isArray(body.completedDailyDates))
+      ) {
+        return jsonResponse({ error: 'Ungültige Fortschrittsdaten' }, 400);
+      }
+
+      const rawSolved = isPlainObject(body.solvedIds) ? body.solvedIds : {};
+      const rawDrafts = isPlainObject(body.drafts) ? body.drafts : {};
       const rawActiveDays = Array.isArray(body.activeDays) ? body.activeDays : [];
       const rawCompletedDates = Array.isArray(body.completedDailyDates)
         ? body.completedDailyDates
         : [];
+
+      if (
+        Object.keys(rawSolved).length > MAX_RAW_ENTRIES ||
+        Object.keys(rawDrafts).length > MAX_RAW_ENTRIES ||
+        rawActiveDays.length > MAX_RAW_ENTRIES ||
+        rawCompletedDates.length > MAX_RAW_ENTRIES
+      ) {
+        return jsonResponse({ error: 'Zu viele Einträge in Fortschrittsdaten' }, 400);
+      }
+
       const todayKey = isValidDateKey(body.todayKey) ? body.todayKey : null;
       const todayExerciseIds = Array.isArray(body.todayExerciseIds)
         ? body.todayExerciseIds.filter((id): id is string => isValidId(id)).slice(0, 20)
         : [];
 
-      const allExerciseIds = new Set<string>([
-        ...Object.keys(rawSolved).filter(isValidId),
-        ...Object.keys(rawDrafts).filter(isValidId),
-      ]);
+      const allExerciseIds = Array.from(
+        new Set<string>([
+          ...Object.keys(rawSolved).filter(isValidId),
+          ...Object.keys(rawDrafts).filter(isValidId),
+        ])
+      ).slice(0, MAX_MERGE_EXERCISES);
 
       for (const exId of allExerciseIds) {
-        const solvedDate = isValidDateKey(rawSolved[exId]) ? (rawSolved[exId] as string) : null;
+        const rawSolvedVal = Object.prototype.hasOwnProperty.call(rawSolved, exId)
+          ? rawSolved[exId]
+          : undefined;
+        const rawDraftVal = Object.prototype.hasOwnProperty.call(rawDrafts, exId)
+          ? rawDrafts[exId]
+          : undefined;
+        const solvedDate = isValidDateKey(rawSolvedVal) ? rawSolvedVal : null;
         const draftSql =
-          typeof rawDrafts[exId] === 'string'
-            ? (rawDrafts[exId] as string).slice(0, MAX_SQL_LENGTH)
+          typeof rawDraftVal === 'string'
+            ? rawDraftVal.slice(0, MAX_SQL_LENGTH)
             : null;
         if (!solvedDate && !draftSql) continue;
 
@@ -307,10 +413,12 @@ export async function POST(request: Request): Promise<Response> {
       }
 
       const completedSet = new Set(rawCompletedDates.filter(isValidDateKey));
-      const allDays = new Set<string>([
-        ...rawActiveDays.filter(isValidDateKey),
-        ...completedSet,
-      ]);
+      const allDays = Array.from(
+        new Set<string>([
+          ...rawActiveDays.filter(isValidDateKey),
+          ...completedSet,
+        ])
+      ).slice(0, MAX_MERGE_DAYS);
 
       for (const dk of allDays) {
         const isDone = completedSet.has(dk);
@@ -339,9 +447,7 @@ export async function POST(request: Request): Promise<Response> {
         action: 'merge_local',
         outcome: 'success',
       });
-      return Response.json(merged, {
-        headers: { 'Cache-Control': 'no-store' },
-      });
+      return jsonResponse(merged, 200);
     }
 
     metric('sql_trainer.progress.requests', 1, {
@@ -349,13 +455,13 @@ export async function POST(request: Request): Promise<Response> {
       action: 'invalid',
       outcome: 'bad_request',
     });
-    return Response.json({ error: `Unbekannte Aktion: ${action}` }, { status: 400 });
+    return jsonResponse({ error: 'Unbekannte Aktion.' }, 400);
   } catch (err) {
     console.error(`[api/progress POST ${action}] error:`, err);
     metric('sql_trainer.progress.requests', 1, { method: 'POST', outcome: 'error' });
-    return Response.json(
+    return jsonResponse(
       { error: 'Fortschritt konnte nicht gespeichert werden.' },
-      { status: 500 }
+      500
     );
   } finally {
     metric('sql_trainer.progress.duration_ms', performance.now() - startedAt, {
@@ -370,7 +476,7 @@ export async function DELETE(request: Request): Promise<Response> {
     const auth = await authenticateRequest(request);
     if (!auth) {
       metric('sql_trainer.progress.requests', 1, { method: 'DELETE', outcome: 'unauthorized' });
-      return Response.json({ error: 'Nicht angemeldet' }, { status: 401 });
+      return jsonResponse({ error: 'Nicht angemeldet' }, 401);
     }
 
     await ensureSchema();
@@ -384,13 +490,13 @@ export async function DELETE(request: Request): Promise<Response> {
     ]);
 
     metric('sql_trainer.progress.requests', 1, { method: 'DELETE', outcome: 'success' });
-    return Response.json({ ok: true });
+    return jsonResponse({ ok: true }, 200);
   } catch (err) {
     console.error('[api/progress DELETE] error:', err);
     metric('sql_trainer.progress.requests', 1, { method: 'DELETE', outcome: 'error' });
-    return Response.json(
+    return jsonResponse(
       { error: 'Fortschritt konnte nicht zurückgesetzt werden.' },
-      { status: 500 }
+      500
     );
   } finally {
     metric('sql_trainer.progress.duration_ms', performance.now() - startedAt, {
