@@ -160,10 +160,10 @@ export const uniSchema: SchemaDef = {
       (3004, 'Wittgenstein', 'Sprachtheorie', 2126),
       (3005, 'Rhetikus', 'Planetenbewegung', 2127),
       (3006, 'Newton', 'Keplersche Gesetze', 2127),
-      (3007, 'Spinoza', 'Gott und Natur', 2126);
+      (3007, 'Spinoza', 'Gott und Natur', 2134);
 
     INSERT INTO Vorlesungen VALUES
-      (5001, 'Grundzüge', 4, 2137),
+      (5001, 'Grundzuege', 4, 2137),
       (5041, 'Ethik', 4, 2125),
       (5043, 'Erkenntnistheorie', 3, 2126),
       (5049, 'Mäeutik', 2, 2125),
@@ -182,12 +182,12 @@ export const uniSchema: SchemaDef = {
       (28106, 5052),
       (28106, 5216),
       (28106, 5259),
-      (26830, 5216),
       (29120, 5001),
       (29120, 5041),
       (29120, 5049),
       (29555, 5022),
-      (25403, 5022);
+      (25403, 5022),
+      (29555, 5001);
 
     INSERT INTO voraussetzen VALUES
       (5001, 5041),
@@ -200,7 +200,6 @@ export const uniSchema: SchemaDef = {
 
     INSERT INTO pruefen VALUES
       (28106, 5001, 2126, 1.0),
-      (28106, 5041, 2125, 1.3),
       (25403, 5041, 2125, 2.0),
       (27550, 4630, 2137, 2.0);
   `,
@@ -316,6 +315,7 @@ WHERE SWS = (SELECT MAX(SWS) FROM Vorlesungen);`,
     alternativeSolutions: [
       `SELECT DISTINCT v.VorlNr FROM Vorlesungen v WHERE NOT EXISTS (SELECT * FROM Vorlesungen v2 WHERE v.SWS < v2.SWS);`,
       `SELECT DISTINCT VorlNr FROM Vorlesungen WHERE SWS >= ALL (SELECT SWS FROM Vorlesungen);`,
+      `(SELECT VorlNr FROM Vorlesungen v) EXCEPT (SELECT v1.VorlNr FROM Vorlesungen v1 INNER JOIN Vorlesungen v2 ON v1.SWS < v2.SWS);`,
     ],
     hints: [
       'Der algebraische Ausdruck entfernt alle Vorlesungen, zu denen es eine Vorlesung mit strikt größeren SWS gibt — übrig bleiben die Maxima.',
@@ -357,7 +357,7 @@ WHERE s.MatrNr = h.MatrNr
       'Übersetzen Sie das in ein doppeltes `NOT EXISTS`: „Es gibt keine direkte Voraussetzung von Bioethik, die der Student nicht gehört hat.“',
     ],
     solutionExplanation:
-      'Klassiker aus Blatt 4 Aufg. 3: Aristoxenos hört zwar Bioethik, hat aber die direkte Voraussetzung Ethik (5041) nicht gehört — nur Carnap erfüllt die Allquantor-Bedingung.',
+      'Klassiker aus Blatt 4 Aufg. 3: Carnap hört Bioethik (5216) und auch deren direkte Voraussetzung Ethik (5041) — nur Carnap erfüllt die Allquantor-Bedingung.',
   },
   {
     id: 'uni-6-profs-vorlesungsanzahl',
@@ -435,7 +435,7 @@ ORDER BY Anzahl DESC, p.Name ASC;`,
       'Zählen Sie mit `COUNT(a.PersNr)` (nicht `COUNT(*)`!), damit Professoren ohne Assistenten `0` erhalten.',
     ],
     solutionExplanation:
-      'Sokrates, Russel und Kopernikus haben je 2 Assistenten; Augustinus, Curie, Kant und Popper haben 0.',
+      'Sokrates und Kopernikus haben je 2 Assistenten; Russel und Augustinus haben je 1; Curie, Kant und Popper haben 0.',
   },
   {
     id: 'uni-9-studenten-ohne-vorlesung',
@@ -457,7 +457,7 @@ WHERE NOT EXISTS (
 )
 ORDER BY s.MatrNr ASC;`,
     hints: ['Prüfen Sie mit `NOT EXISTS` gegen die Tabelle `hoeren`.'],
-    solutionExplanation: 'Nur Xenokrates (24002) hat keinen Eintrag in der Relation `hoeren`.',
+    solutionExplanation: 'Xenokrates (24002) und Aristoxenos (26830) haben keinen Eintrag in der Relation `hoeren`.',
   },
   {
     id: 'uni-10-durchschnittsnote-studenten',
@@ -479,7 +479,7 @@ ORDER BY Schnitt ASC, s.Name ASC;`,
       'Verbinden Sie `Studenten` und `pruefen` über `MatrNr` und gruppieren Sie nach `(s.MatrNr, s.Name)`.',
     ],
     solutionExplanation:
-      'Carnap führt mit 1,15 (Noten 1,0 und 1,3), gefolgt von Jonas (2,00) und Schopenhauer (2,00).',
+      'Carnap führt mit 1,00 (Grundzuege), gefolgt von Jonas (2,00) und Schopenhauer (2,00).',
   },
   {
     id: 'uni-11-c4-profs-sws-summe',
