@@ -414,4 +414,148 @@ ORDER BY vl.Titel ASC;`,
     solutionExplanation:
       'Der Wiener Kreis (5259) setzt Wissenschaftstheorie (5052) voraus, diese setzt Ethik (5041) und Erkenntnistheorie (5043) voraus, und beide setzen Grundzüge (5001) voraus.',
   },
+  {
+    id: 'uni-8-assistenten-pro-prof',
+    schemaId: 'uni',
+    title: 'Anzahl Assistenten pro Professor (inkl. 0)',
+    source: 'Klausurtraining (LEFT JOIN + COUNT)',
+    difficulty: 'Mittel',
+    topics: ['LEFT JOIN', 'GROUP BY', 'COUNT(Spalte)'],
+    prompt:
+      'Geben Sie für jeden Professor dessen `Name` und die Anzahl seiner Assistenten aus — auch für Professoren ohne Assistenten (`0`). Sortieren Sie absteigend nach der Anzahl und bei Gleichstand alphabetisch aufsteigend nach `Name`.',
+    expectedColumns: ['Name', 'Anzahl'],
+    orderMatters: true,
+    solutionSql: `SELECT p.Name, COUNT(a.PersNr) AS Anzahl
+FROM Professoren p
+LEFT JOIN Assistenten a ON p.PersNr = a.Boss
+GROUP BY p.PersNr, p.Name
+ORDER BY Anzahl DESC, p.Name ASC;`,
+    hints: [
+      'Verbinden Sie `Professoren` per `LEFT JOIN` mit `Assistenten` über `p.PersNr = a.Boss`.',
+      'Zählen Sie mit `COUNT(a.PersNr)` (nicht `COUNT(*)`!), damit Professoren ohne Assistenten `0` erhalten.',
+    ],
+    solutionExplanation:
+      'Sokrates, Russel und Kopernikus haben je 2 Assistenten; Augustinus, Curie, Kant und Popper haben 0.',
+  },
+  {
+    id: 'uni-9-studenten-ohne-vorlesung',
+    schemaId: 'uni',
+    title: 'Studenten ohne besuchte Vorlesungen',
+    source: 'Klausurtraining (Anti-Join)',
+    difficulty: 'Basis',
+    topics: ['NOT EXISTS', 'Anti-Join'],
+    prompt:
+      'Welche Studenten besuchen derzeit keine einzige Vorlesung? Geben Sie `MatrNr` und `Name` (in dieser Reihenfolge) aufsteigend nach `MatrNr` sortiert aus.',
+    expectedColumns: ['MatrNr', 'Name'],
+    orderMatters: true,
+    solutionSql: `SELECT s.MatrNr, s.Name
+FROM Studenten s
+WHERE NOT EXISTS (
+  SELECT *
+  FROM hoeren h
+  WHERE h.MatrNr = s.MatrNr
+)
+ORDER BY s.MatrNr ASC;`,
+    hints: ['Prüfen Sie mit `NOT EXISTS` gegen die Tabelle `hoeren`.'],
+    solutionExplanation: 'Nur Xenokrates (24002) hat keinen Eintrag in der Relation `hoeren`.',
+  },
+  {
+    id: 'uni-10-durchschnittsnote-studenten',
+    schemaId: 'uni',
+    title: 'Durchschnittsnote geprüfter Studenten',
+    source: 'Klausurtraining (GROUP BY + AVG)',
+    difficulty: 'Basis',
+    topics: ['JOIN', 'GROUP BY', 'AVG', 'ROUND'],
+    prompt:
+      'Geben Sie für jeden Studenten, der mindestens eine Prüfung abgelegt hat, dessen `Name` und die auf 2 Nachkommastellen gerundete Durchschnittsnote (`ROUND(AVG(Note), 2)`) aus. Sortieren Sie aufsteigend nach Durchschnittsnote (beste Note zuerst) und bei Gleichstand alphabetisch nach `Name`.',
+    expectedColumns: ['Name', 'Schnitt'],
+    orderMatters: true,
+    solutionSql: `SELECT s.Name, ROUND(AVG(p.Note), 2) AS Schnitt
+FROM Studenten s
+JOIN pruefen p ON s.MatrNr = p.MatrNr
+GROUP BY s.MatrNr, s.Name
+ORDER BY Schnitt ASC, s.Name ASC;`,
+    hints: [
+      'Verbinden Sie `Studenten` und `pruefen` über `MatrNr` und gruppieren Sie nach `(s.MatrNr, s.Name)`.',
+    ],
+    solutionExplanation:
+      'Carnap führt mit 1,15 (Noten 1,0 und 1,3), gefolgt von Jonas (2,00) und Schopenhauer (2,00).',
+  },
+  {
+    id: 'uni-11-c4-profs-sws-summe',
+    schemaId: 'uni',
+    title: 'SWS-Summe aller C4-Professoren (NULL-Falle bei SUM)',
+    source: 'Klausurtraining (Kap. 3/4 NULL bei Aggregaten)',
+    difficulty: 'Mittel',
+    topics: ['LEFT JOIN', 'COALESCE', 'SUM', 'NULL-Semantik / 3VL'],
+    prompt:
+      'Geben Sie für jeden `\'C4\'`-Professor dessen `Name` und die Summe der `SWS` aller von ihm gelesenen Vorlesungen aus. Bei Professoren ohne Vorlesung soll `0` (nicht `NULL`!) stehen. Sortieren Sie absteigend nach SWS-Summe und aufsteigend nach `Name`.',
+    expectedColumns: ['Name', 'GesamtSWS'],
+    orderMatters: true,
+    solutionSql: `SELECT p.Name, COALESCE(SUM(v.SWS), 0) AS GesamtSWS
+FROM Professoren p
+LEFT JOIN Vorlesungen v ON p.PersNr = v.gelesenVon
+WHERE p.Rang = 'C4'
+GROUP BY p.PersNr, p.Name
+ORDER BY GesamtSWS DESC, p.Name ASC;`,
+    hints: [
+      'Klausurfalle aus Kap. 3 S. 43–47: `SUM(...)` über lauter `NULL`-Werte liefert `NULL`, nicht `0`!',
+      'Wandeln Sie `NULL` mit `COALESCE(SUM(v.SWS), 0)` in `0` um.',
+    ],
+    solutionExplanation:
+      'Curie ist C4-Professorin, liest aber keine Vorlesung — ohne `COALESCE` stünde bei ihr `NULL` statt `0`.',
+  },
+  {
+    id: 'uni-12-alle-vorlesungen-besucht',
+    schemaId: 'uni',
+    title: 'Professoren, deren ALLE Vorlesungen besucht werden (Allquantor)',
+    source: 'Klausurtraining (Allquantor / Doppeltes NOT EXISTS)',
+    difficulty: 'Klausurniveau',
+    topics: ['Allquantor', 'Doppeltes NOT EXISTS'],
+    prompt:
+      'Geben Sie die Namen aller Professoren aus, die mindestens eine Vorlesung halten und bei denen **jede** ihrer Vorlesungen von mindestens einem Studenten besucht wird (in `hoeren` vorkommt). Sortieren Sie alphabetisch aufsteigend.',
+    expectedColumns: ['Name'],
+    orderMatters: true,
+    requiresDistinct: true,
+    solutionSql: `SELECT p.Name
+FROM Professoren p
+WHERE EXISTS (
+  SELECT * FROM Vorlesungen v WHERE v.gelesenVon = p.PersNr
+)
+AND NOT EXISTS (
+  SELECT *
+  FROM Vorlesungen v
+  WHERE v.gelesenVon = p.PersNr
+    AND NOT EXISTS (
+      SELECT *
+      FROM hoeren h
+      WHERE h.VorlNr = v.VorlNr
+    )
+)
+ORDER BY p.Name ASC;`,
+    hints: [
+      '„Jede Vorlesung von Professor p wird besucht“ ⇔ „Es gibt keine Vorlesung von p, für die kein Eintrag in `hoeren` existiert.“',
+      'Vergessen Sie nicht, per `EXISTS` Professoren ohne Vorlesungen (Kopernikus, Curie) auszuschließen (leerer Allquantor wäre sonst wahr!).',
+    ],
+    solutionExplanation:
+      'Bei Russel wird `Erkenntnistheorie` (5043) und bei Kant `Die 3 Kritiken` (4630) von niemandem gehört — nur Augustinus, Popper und Sokrates erfüllen die Allquantor-Bedingung.',
+  },
+  {
+    id: 'uni-13-semester-rangliste',
+    schemaId: 'uni',
+    title: 'Semester-Rangliste der Studenten (Window Function)',
+    source: 'Klausurtraining (RANK() OVER)',
+    difficulty: 'Basis',
+    topics: ['Window Function', 'RANK() OVER'],
+    prompt:
+      'Erstellen Sie eine Rangliste aller Studenten absteigend nach ihrem `Semester` (höchstes Semester = Rang 1, Gleichstände erhalten denselben Rang mit anschließendem Sprung). Geben Sie `Name`, `Semester` und `Rang` aufsteigend sortiert nach `Rang` und `Name` aus.',
+    expectedColumns: ['Name', 'Semester', 'Rang'],
+    orderMatters: true,
+    solutionSql: `SELECT Name, Semester, RANK() OVER (ORDER BY Semester DESC) AS Rang
+FROM Studenten
+ORDER BY Rang ASC, Name ASC;`,
+    hints: ['Verwenden Sie `RANK() OVER (ORDER BY Semester DESC)`.'],
+    solutionExplanation:
+      'Xenokrates (18. Sem.) liegt auf Rang 1; Feuerbach und Theophrastos teilen sich im 2. Semester Rang 7.',
+  },
 ];

@@ -269,4 +269,178 @@ ORDER BY PreisProKm DESC;`,
     solutionExplanation:
       'ICE ist pro Kilometer am teuersten, gefolgt von RE und IC. Bei reinen INTEGER-Zählern/Nennern in PostgreSQL/HyPer immer casten oder mit 1.0 multiplizieren!',
   },
+  {
+    id: 'bahn-7-verbindungen-viele-teilstrecken',
+    schemaId: 'bahn',
+    title: 'Verbindungen mit mehr als 2 Teilstrecken',
+    source: 'Klausurtraining (GROUP BY + HAVING)',
+    difficulty: 'Basis',
+    topics: ['JOIN', 'GROUP BY', 'HAVING', 'COUNT'],
+    prompt:
+      'Welche Zugverbindungen bestehen aus mehr als 2 Teilstrecken? Geben Sie `ZugNr`, `Wochentag`, `StartBhf`, `ZielBhf` und die Anzahl der Teilstrecken (in dieser Reihenfolge) absteigend nach der Anzahl sortiert aus.',
+    expectedColumns: ['ZugNr', 'Wochentag', 'StartBhf', 'ZielBhf', 'Anzahl'],
+    orderMatters: true,
+    solutionSql: `SELECT v.ZugNr, v.Wochentag, v.StartBhf, v.ZielBhf, COUNT(*) AS Anzahl
+FROM Verbindung v
+JOIN Teilstrecke t ON v.ZugNr = t.ZugNr AND v.Wochentag = t.Wochentag
+GROUP BY v.ZugNr, v.Wochentag, v.StartBhf, v.ZielBhf
+HAVING COUNT(*) > 2
+ORDER BY Anzahl DESC;`,
+    hints: [
+      'Verknüpfen Sie `Verbindung` und `Teilstrecke` über `(ZugNr, Wochentag)` und filtern Sie nach `GROUP BY` mit `HAVING COUNT(*) > 2`.',
+    ],
+    solutionExplanation:
+      'Zug 102 (4 Teilstrecken) und Zug 202 (3 Teilstrecken) auf der Strecke München → Hamburg erfüllen die Bedingung.',
+  },
+  {
+    id: 'bahn-8-zuege-nicht-montags',
+    schemaId: 'bahn',
+    title: 'Züge ohne Montagsverbindung',
+    source: 'Klausurtraining (Anti-Join)',
+    difficulty: 'Basis',
+    topics: ['NOT EXISTS', 'Anti-Join'],
+    prompt:
+      'Welche Züge verkehren laut `Verbindung` **nicht** am Montag (`Wochentag = 1`)? Geben Sie `ZugNr` und `Zugtyp` (in dieser Reihenfolge) aufsteigend nach `ZugNr` sortiert aus.',
+    expectedColumns: ['ZugNr', 'Zugtyp'],
+    orderMatters: true,
+    solutionSql: `SELECT z.ZugNr, z.Zugtyp
+FROM Zug z
+WHERE NOT EXISTS (
+  SELECT *
+  FROM Verbindung v
+  WHERE v.ZugNr = z.ZugNr
+    AND v.Wochentag = 1
+)
+ORDER BY z.ZugNr ASC;`,
+    hints: ['Nutzen Sie `WHERE NOT EXISTS` mit `v.ZugNr = z.ZugNr AND v.Wochentag = 1`.'],
+    solutionExplanation: 'Nur Zug 302 (RE, fährt freitags nach Westerland) hat keine Verbindung am Montag.',
+  },
+  {
+    id: 'bahn-9-max-werte-je-zugtyp',
+    schemaId: 'bahn',
+    title: 'Maximalpreis und Maximalentfernung je Zugtyp',
+    source: 'Klausurtraining (Aggregation)',
+    difficulty: 'Basis',
+    topics: ['JOIN', 'GROUP BY', 'MAX'],
+    prompt:
+      'Geben Sie für jeden `Zugtyp` den höchsten Teilstreckenpreis (`MAX(Preis)`) und die längste Teilstrecken-Entfernung (`MAX(Entfernung)`) aus (Spalten: `Zugtyp`, `MaxPreis`, `MaxEntfernung`). Sortieren Sie alphabetisch nach `Zugtyp`.',
+    expectedColumns: ['Zugtyp', 'MaxPreis', 'MaxEntfernung'],
+    orderMatters: true,
+    solutionSql: `SELECT z.Zugtyp, MAX(t.Preis) AS MaxPreis, MAX(t.Entfernung) AS MaxEntfernung
+FROM Zug z
+JOIN Teilstrecke t ON z.ZugNr = t.ZugNr
+GROUP BY z.Zugtyp
+ORDER BY z.Zugtyp ASC;`,
+    hints: ['Joinen Sie `Zug` und `Teilstrecke` über `ZugNr` und gruppieren Sie nach `z.Zugtyp`.'],
+    solutionExplanation: 'Gruppierte Aggregation liefert pro Zugtyp direkt Preis- und Entfernungsmaximum.',
+  },
+  {
+    id: 'bahn-10-umsteigebahnhoefe',
+    schemaId: 'bahn',
+    title: 'Umsteigebahnhöfe (INTERSECT)',
+    source: 'Klausurtraining (Mengenoperationen)',
+    difficulty: 'Mittel',
+    topics: ['INTERSECT', 'Mengenoperationen'],
+    prompt:
+      'Geben Sie die Namen aller Bahnhöfe (ohne Duplikate) aus, die in `Teilstrecke` sowohl als Abfahrtsbahnhof (`vonBhf`) als auch als Ankunftsbahnhof (`nachBhf`) vorkommen. Sortieren Sie alphabetisch aufsteigend.',
+    expectedColumns: ['Bahnhof'],
+    orderMatters: true,
+    requiresDistinct: true,
+    solutionSql: `(SELECT vonBhf AS Bahnhof FROM Teilstrecke)
+INTERSECT
+(SELECT nachBhf AS Bahnhof FROM Teilstrecke)
+ORDER BY Bahnhof ASC;`,
+    alternativeSolutions: [
+      `SELECT DISTINCT t1.vonBhf AS Bahnhof FROM Teilstrecke t1 JOIN Teilstrecke t2 ON t1.vonBhf = t2.nachBhf ORDER BY Bahnhof ASC;`,
+    ],
+    hints: [
+      'Der Mengendurchschnitt in SQL lautet `INTERSECT` (eliminiert Duplikate standardmäßig!).',
+    ],
+    solutionExplanation:
+      'Darmstadt, Frankfurt, Hamburg, Hannover, Kassel-Wilhelmshöhe, Niebüll und Nürnberg dienen sowohl als `vonBhf` als auch als `nachBhf`.',
+  },
+  {
+    id: 'bahn-11-zwischenstationen-muc-hh',
+    schemaId: 'bahn',
+    title: 'Zwischenstationen der Züge München → Hamburg',
+    source: 'Übungsblatt 3 · Aufg. 5(d)',
+    difficulty: 'Mittel',
+    topics: ['JOIN', 'WHERE', 'ORDER BY'],
+    prompt:
+      'Geben Sie für alle Verbindungen, die in `\'München Hbf\'` starten und in `\'Hamburg Hbf\'` enden, die `ZugNr` und alle echten Zwischenstationen (`t.nachBhf`, also ohne den Zielbahnhof `\'Hamburg Hbf\'`) aus. Sortieren Sie aufsteigend nach `ZugNr` und `AbfahrtZeit`.',
+    expectedColumns: ['ZugNr', 'Zwischenstation'],
+    orderMatters: true,
+    solutionSql: `SELECT t.ZugNr, t.nachBhf AS Zwischenstation
+FROM Verbindung v
+JOIN Teilstrecke t ON v.ZugNr = t.ZugNr AND v.Wochentag = t.Wochentag
+WHERE v.StartBhf = 'München Hbf'
+  AND v.ZielBhf = 'Hamburg Hbf'
+  AND t.nachBhf <> 'Hamburg Hbf'
+ORDER BY t.ZugNr ASC, t.AbfahrtZeit ASC;`,
+    hints: [
+      'Verbinden Sie `Verbindung` und `Teilstrecke` über `(ZugNr, Wochentag)` und schließen Sie den Endbahnhof `\'Hamburg Hbf\'` mit `<>` aus.',
+    ],
+    solutionExplanation:
+      'Zug 102 hält in Nürnberg, Kassel-Wilhelmshöhe und Hannover; Zug 202 hält in Frankfurt und Hannover.',
+  },
+  {
+    id: 'bahn-12-guenstigste-muc-hh',
+    schemaId: 'bahn',
+    title: 'Günstigste Gesamtverbindung München → Hamburg',
+    source: 'Klausurtraining (WITH / CTE + MIN)',
+    difficulty: 'Klausurniveau',
+    topics: ['WITH / CTE', 'SUM', 'MIN'],
+    prompt:
+      'Bestimmen Sie die Verbindung von `\'München Hbf\'` nach `\'Hamburg Hbf\'` mit dem niedrigsten Gesamtfahrpreis. Geben Sie `ZugNr`, `Wochentag` und `Gesamtpreis` aus.',
+    expectedColumns: ['ZugNr', 'Wochentag', 'Gesamtpreis'],
+    orderMatters: false,
+    solutionSql: `WITH Gesamt AS (
+  SELECT v.ZugNr, v.Wochentag, SUM(t.Preis) AS Gesamtpreis
+  FROM Verbindung v
+  JOIN Teilstrecke t ON v.ZugNr = t.ZugNr AND v.Wochentag = t.Wochentag
+  WHERE v.StartBhf = 'München Hbf'
+    AND v.ZielBhf = 'Hamburg Hbf'
+  GROUP BY v.ZugNr, v.Wochentag
+)
+SELECT ZugNr, Wochentag, Gesamtpreis
+FROM Gesamt
+WHERE Gesamtpreis = (SELECT MIN(Gesamtpreis) FROM Gesamt);`,
+    hints: [
+      'Berechnen Sie die Gesamtpreise in einer `WITH`-CTE und wählen Sie das Minimum mit `WHERE Gesamtpreis = (SELECT MIN(Gesamtpreis) FROM Gesamt)`.',
+    ],
+    solutionExplanation:
+      'Zug 202 (IC) kostet insgesamt 138,00 € und ist damit günstiger als Zug 102 (ICE, 176,00 €).',
+  },
+  {
+    id: 'bahn-13-erreichbare-bahnhoefe-rekursiv',
+    schemaId: 'bahn',
+    title: 'Alle von Mannheim erreichbaren Bahnhöfe (Rekursives SQL)',
+    source: 'Klausurtraining (WITH RECURSIVE)',
+    difficulty: 'Klausurniveau',
+    topics: ['WITH RECURSIVE', 'Transitive Hülle'],
+    prompt:
+      'Bestimmen Sie mittels rekursivem SQL alle Bahnhöfe (Spalte `Bahnhof`, ohne `\'Mannheim Hbf\'` selbst), die ausgehend von `\'Mannheim Hbf\'` über eine oder mehrere gerichtete Teilstrecken (`vonBhf` → `nachBhf`) erreichbar sind. Sortieren Sie alphabetisch aufsteigend.',
+    expectedColumns: ['Bahnhof'],
+    orderMatters: true,
+    requiresDistinct: true,
+    solutionSql: `WITH RECURSIVE Erreichbar(Bahnhof) AS (
+  SELECT nachBhf
+  FROM Teilstrecke
+  WHERE vonBhf = 'Mannheim Hbf'
+  UNION
+  SELECT t.nachBhf
+  FROM Erreichbar e
+  JOIN Teilstrecke t ON e.Bahnhof = t.vonBhf
+)
+SELECT Bahnhof
+FROM Erreichbar
+WHERE Bahnhof <> 'Mannheim Hbf'
+ORDER BY Bahnhof ASC;`,
+    hints: [
+      'Starten Sie im Basisfall mit allen `nachBhf`, bei denen `vonBhf = \'Mannheim Hbf\'` gilt.',
+      'Nutzen Sie `UNION` (statt `UNION ALL`), damit die Rekursion auch bei potenziellen Zyklen sicher terminiert.',
+    ],
+    solutionExplanation:
+      'Von Mannheim aus sind u. a. über Frankfurt → Hannover → Hamburg → Niebüll → Westerland insgesamt 7 Bahnhöfe transitiv erreichbar.',
+  },
 ];

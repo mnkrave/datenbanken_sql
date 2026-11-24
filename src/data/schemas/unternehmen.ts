@@ -214,4 +214,148 @@ HAVING COUNT(DISTINCT a.Beruf) = (SELECT COUNT(DISTINCT Beruf) FROM Angestellte)
     solutionExplanation:
       'Im Unternehmen gibt es 3 Berufe (Projektleiter, Programmierer, Analyst). Sowohl Abteilung 10 (Entwicklung) als auch Abteilung 20 (Datenbanken) decken alle drei ab; Beratung (30) hat nur Programmierer.',
   },
+  {
+    id: 'unt-7-avg-gehalt-abteilung',
+    schemaId: 'unternehmen',
+    title: 'Durchschnittsgehalt pro Abteilung',
+    source: 'Klausurtraining (GROUP BY + AVG)',
+    difficulty: 'Basis',
+    topics: ['JOIN', 'GROUP BY', 'AVG', 'ROUND'],
+    prompt:
+      'Berechnen Sie für jede Abteilung mit mindestens einem Angestellten den `AbteilName` und das auf 2 Nachkommastellen gerundete Durchschnittsgehalt (`ROUND(AVG(Gehalt), 2)`). Sortieren Sie absteigend nach dem Durchschnittsgehalt.',
+    expectedColumns: ['AbteilName', 'AvgGehalt'],
+    orderMatters: true,
+    solutionSql: `SELECT d.AbteilName, ROUND(AVG(a.Gehalt), 2) AS AvgGehalt
+FROM Abteilung d
+JOIN Angestellte a ON d.AbteilNr = a.AbteilNr
+GROUP BY d.AbteilNr, d.AbteilName
+ORDER BY AvgGehalt DESC;`,
+    hints: ['Verknüpfen Sie `Abteilung` und `Angestellte` über `AbteilNr` und gruppieren Sie nach Abteilung.'],
+    solutionExplanation: 'Entwicklung (6375 €) liegt vor Datenbanken (6133,33 €) und Beratung (5400 €).',
+  },
+  {
+    id: 'unt-8-ohne-chef',
+    schemaId: 'unternehmen',
+    title: 'Angestellte ohne direkten Chef (NULL-Prüfung)',
+    source: 'Klausurtraining (NULL-Semantik / 3VL)',
+    difficulty: 'Basis',
+    topics: ['NULL-Semantik / 3VL', 'WHERE'],
+    prompt:
+      'Welche Angestellten haben keinen direkten Vorgesetzten (`ChefNr` ist `NULL`)? Geben Sie `Name` und `Beruf` alphabetisch nach `Name` sortiert aus.',
+    expectedColumns: ['Name', 'Beruf'],
+    orderMatters: true,
+    solutionSql: `SELECT Name, Beruf
+FROM Angestellte
+WHERE ChefNr IS NULL
+ORDER BY Name ASC;`,
+    hints: [
+      'Klausurfalle 3VL (Blatt 5 Aufg. 4d): `ChefNr = NULL` ergibt immer `unknown` (leeres Ergebnis)! Verwenden Sie `ChefNr IS NULL`.',
+    ],
+    solutionExplanation: 'Schulz und Weber haben `ChefNr IS NULL`.',
+  },
+  {
+    id: 'unt-9-pendler',
+    schemaId: 'unternehmen',
+    title: 'Pendler: Wohnort ungleich Abteilungsort',
+    source: 'Klausurtraining (JOIN + <>)',
+    difficulty: 'Basis',
+    topics: ['JOIN', 'WHERE'],
+    prompt:
+      'Geben Sie `Name`, `Wohnort` und `Ort` (der Abteilung) aller Angestellten aus, die in einer anderen Stadt wohnen als dem Standort ihrer Abteilung. Sortieren Sie alphabetisch nach `Name`.',
+    expectedColumns: ['Name', 'Wohnort', 'Abteilungsort'],
+    orderMatters: true,
+    solutionSql: `SELECT a.Name, a.Wohnort, d.Ort AS Abteilungsort
+FROM Angestellte a
+JOIN Abteilung d ON a.AbteilNr = d.AbteilNr
+WHERE a.Wohnort <> d.Ort
+ORDER BY a.Name ASC;`,
+    hints: ['Vergleichen Sie nach dem Join `a.Wohnort <> d.Ort`.'],
+    solutionExplanation: 'Bauer, Keller, Klein, Neumann und Richter pendeln an einen anderen Arbeitsort.',
+  },
+  {
+    id: 'unt-10-mitarbeiterzahl-inkl-0',
+    schemaId: 'unternehmen',
+    title: 'Mitarbeiterzahl pro Abteilung (inkl. leerer Abteilungen)',
+    source: 'Klausurtraining (LEFT JOIN + COUNT)',
+    difficulty: 'Mittel',
+    topics: ['LEFT JOIN', 'GROUP BY', 'COUNT(Spalte)'],
+    prompt:
+      'Geben Sie für **jede** Abteilung deren `AbteilName` und die Anzahl ihrer Angestellten aus — auch für Abteilungen ohne Mitarbeiter (`0`). Sortieren Sie absteigend nach Anzahl und alphabetisch nach `AbteilName`.',
+    expectedColumns: ['AbteilName', 'Anzahl'],
+    orderMatters: true,
+    solutionSql: `SELECT d.AbteilName, COUNT(a.PersonalNr) AS Anzahl
+FROM Abteilung d
+LEFT JOIN Angestellte a ON d.AbteilNr = a.AbteilNr
+GROUP BY d.AbteilNr, d.AbteilName
+ORDER BY Anzahl DESC, d.AbteilName ASC;`,
+    hints: ['Nutzen Sie `LEFT JOIN` und `COUNT(a.PersonalNr)` (nicht `COUNT(*)`!).'],
+    solutionExplanation: 'Forschung (Abt. 40) erscheint dank `LEFT JOIN` und `COUNT(a.PersonalNr)` korrekt mit `0`.',
+  },
+  {
+    id: 'unt-11-ueber-abteilungsdurchschnitt',
+    schemaId: 'unternehmen',
+    title: 'Überdurchschnittlich bezahlte Angestellte je Abteilung',
+    source: 'Klausurtraining (Korrelierte Unterabfrage)',
+    difficulty: 'Klausurniveau',
+    topics: ['Korrelierte Unterabfrage', 'AVG'],
+    prompt:
+      'Finden Sie alle Angestellten, deren Gehalt strikt über dem Durchschnittsgehalt ihrer **eigenen** Abteilung liegt. Geben Sie `Name`, `Gehalt` und `AbteilNr` (in dieser Reihenfolge) absteigend nach `Gehalt` sortiert aus.',
+    expectedColumns: ['Name', 'Gehalt', 'AbteilNr'],
+    orderMatters: true,
+    solutionSql: `SELECT a.Name, a.Gehalt, a.AbteilNr
+FROM Angestellte a
+WHERE a.Gehalt > (
+  SELECT AVG(a2.Gehalt)
+  FROM Angestellte a2
+  WHERE a2.AbteilNr = a.AbteilNr
+)
+ORDER BY a.Gehalt DESC;`,
+    hints: [
+      'Korrelieren Sie die Unterabfrage über `a2.AbteilNr = a.AbteilNr` und vergleichen Sie `a.Gehalt > (SELECT AVG(a2.Gehalt) ...)`.',
+    ],
+    solutionExplanation:
+      'In Abteilung 10 (Ø 6375 €) liegen Keller und Weber darüber; in Abteilung 20 (Ø 6133,33 €) Richter und Schulz.',
+  },
+  {
+    id: 'unt-12-chefs-mit-mindestens-2',
+    schemaId: 'unternehmen',
+    title: 'Vorgesetzte mit mindestens 2 direkten Untergebenen',
+    source: 'Klausurtraining (Self-Join + HAVING)',
+    difficulty: 'Mittel',
+    topics: ['Self-Join', 'GROUP BY', 'HAVING'],
+    prompt:
+      'Welche Angestellten sind direkte Vorgesetzte von mindestens 2 Mitarbeitern? Geben Sie `Name` des Vorgesetzten und die Anzahl seiner direkten Untergebenen absteigend nach Anzahl sortiert aus.',
+    expectedColumns: ['Name', 'Anzahl'],
+    orderMatters: true,
+    solutionSql: `SELECT c.Name, COUNT(*) AS Anzahl
+FROM Angestellte c
+JOIN Angestellte a ON a.ChefNr = c.PersonalNr
+GROUP BY c.PersonalNr, c.Name
+HAVING COUNT(*) >= 2
+ORDER BY Anzahl DESC;`,
+    hints: ['Verknüpfen Sie Chef `c` und Untergebenen `a` über `a.ChefNr = c.PersonalNr` und nutzen Sie `HAVING COUNT(*) >= 2`.'],
+    solutionExplanation: 'Weber leitet 3 Mitarbeiter direkt (Keller, Bauer, Klein), Schulz 2 (Hoffmann, Richter).',
+  },
+  {
+    id: 'unt-13-gehaltsrang-pro-abteilung',
+    schemaId: 'unternehmen',
+    title: 'Gehalts-Rangliste pro Abteilung (PARTITION BY)',
+    source: 'Klausurtraining (Window Function + PARTITION BY)',
+    difficulty: 'Klausurniveau',
+    topics: ['Window Function', 'PARTITION BY', 'RANK() OVER'],
+    prompt:
+      'Erstellen Sie **innerhalb jeder Abteilung** eine Rangliste der Angestellten absteigend nach Gehalt (höchstes Gehalt der Abteilung = Rang 1). Geben Sie `AbteilName`, `Name`, `Gehalt` und `Rang` sortiert nach `AbteilName` aufsteigend und `Rang` aufsteigend aus.',
+    expectedColumns: ['AbteilName', 'Name', 'Gehalt', 'Rang'],
+    orderMatters: true,
+    solutionSql: `SELECT d.AbteilName, a.Name, a.Gehalt,
+       RANK() OVER (PARTITION BY a.AbteilNr ORDER BY a.Gehalt DESC) AS Rang
+FROM Angestellte a
+JOIN Abteilung d ON a.AbteilNr = d.AbteilNr
+ORDER BY d.AbteilName ASC, Rang ASC;`,
+    hints: [
+      'Verwenden Sie `RANK() OVER (PARTITION BY a.AbteilNr ORDER BY a.Gehalt DESC)` (die 3 Window-Konzepte aus VL 19: `PARTITION BY`, `ORDER BY`, Framing).',
+    ],
+    solutionExplanation:
+      '`PARTITION BY a.AbteilNr` startet die Rangzählung für jede Abteilung separat bei 1.',
+  },
 ];

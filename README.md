@@ -2,16 +2,16 @@
 
 Interaktive Web-App zum täglichen SQL-Klausurtraining für **Datenbanksysteme I** — auf Basis aller **8 zentralen SQL- und Anfrage-Schemas** aus den Übungsblättern 3–9.
 
-## Enthaltene Schemas & Aufgabenumfang (54 Aufgaben)
+## Enthaltene Schemas & Aufgabenumfang (104 Aufgaben · 13 volle Tage ohne Wiederholung)
 
-1. **Universitäts-Datenbank (Uni-DB)** — Blatt 4 & Kap. 3–5 (7 Aufgaben)
+1. **Universitäts-Datenbank (Uni-DB)** — Blatt 4 & Kap. 3–5 (13 Aufgaben)
 2. **Terra-Datenbank (Geographie-DB)** — Blatt 5 & 6 (13 Aufgaben)
-3. **Streckennetz einer Bahngesellschaft** — Blatt 3, 5 & 6 (6 Aufgaben)
-4. **Weingut-Datenbank** — Blatt 3 & 4 (6 Aufgaben)
-5. **Angestellte & Abteilung (Unternehmen)** — Blatt 4 (6 Aufgaben)
-6. **Mitarbeiterhierarchie (`employee`)** — Blatt 6 (5 Aufgaben)
-7. **Ticketverwaltung einer Vorverkaufsstelle** — Blatt 7 (6 Aufgaben)
-8. **Sachbearbeiter & Kunde (Kundenbetreuung)** — Blatt 9 (5 Aufgaben)
+3. **Streckennetz einer Bahngesellschaft** — Blatt 3, 5 & 6 (13 Aufgaben)
+4. **Weingut-Datenbank** — Blatt 3 & 4 (13 Aufgaben)
+5. **Angestellte & Abteilung (Unternehmen)** — Blatt 4 (13 Aufgaben)
+6. **Mitarbeiterhierarchie (`employee`)** — Blatt 6 (13 Aufgaben)
+7. **Ticketverwaltung einer Vorverkaufsstelle** — Blatt 7 (13 Aufgaben)
+8. **Sachbearbeiter & Kunde (Kundenbetreuung)** — Blatt 9 (13 Aufgaben)
 
 ## Features
 

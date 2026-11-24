@@ -205,4 +205,194 @@ FROM Subtree;`,
     solutionExplanation:
       'Calista (900k) + Fabriane (800k) + Genevieve (750k) + Inari (500k) + Jordan (100k) + Marlon (100k) + Nissa (100k) = 3.250.000,00.',
   },
+  {
+    id: 'emp-6-blaetter-ohne-untergebene',
+    schemaId: 'employee',
+    title: 'Mitarbeiter ohne Untergebene (Blätter im Baum)',
+    source: 'Klausurtraining (Anti-Join auf Hierarchie)',
+    difficulty: 'Basis',
+    topics: ['NOT EXISTS', 'Anti-Join'],
+    prompt:
+      'Welche Mitarbeiter leiten selbst niemanden (sind Blätter in der Hierarchie)? Geben Sie deren `name` alphabetisch aufsteigend sortiert aus.',
+    expectedColumns: ['name'],
+    orderMatters: true,
+    solutionSql: `SELECT e.name
+FROM employee e
+WHERE NOT EXISTS (
+  SELECT *
+  FROM employee sub
+  WHERE sub.manager_id = e.employee_id
+    AND sub.employee_id <> e.employee_id
+)
+ORDER BY e.name ASC;`,
+    hints: ['Prüfen Sie per `NOT EXISTS`, dass kein anderer Mitarbeiter `manager_id = e.employee_id` besitzt.'],
+    solutionExplanation: 'Electra, Genevieve, Inari, Khalil, Lisette, Marlon und Nissa haben keine Untergebenen.',
+  },
+  {
+    id: 'emp-7-anzahl-direkte-untergebene',
+    schemaId: 'employee',
+    title: 'Anzahl direkter Untergebener je Manager',
+    source: 'Klausurtraining (Self-Join + GROUP BY)',
+    difficulty: 'Mittel',
+    topics: ['Self-Join', 'GROUP BY', 'COUNT'],
+    prompt:
+      'Geben Sie für jeden Manager, der mindestens einen direkten Untergebenen (ungleich sich selbst!) hat, dessen `name` und die Anzahl direkter Untergebener aus. Sortieren Sie absteigend nach Anzahl und alphabetisch nach `name`.',
+    expectedColumns: ['name', 'anzahl'],
+    orderMatters: true,
+    solutionSql: `SELECT m.name, COUNT(*) AS anzahl
+FROM employee m
+JOIN employee e ON e.manager_id = m.employee_id
+WHERE e.employee_id <> m.employee_id
+GROUP BY m.employee_id, m.name
+ORDER BY anzahl DESC, m.name ASC;`,
+    hints: [
+      'Achtung Wurzel-Falle: Schließen Sie `e.employee_id <> m.employee_id` aus, sonst wird Ainslie als ihr eigener Untergebener mitgezählt!',
+    ],
+    solutionExplanation: 'Ainslie hat 3 direkte Untergebene (Briana, Calista, Delmar); Calista, Fabriane, Hunter und Jordan je 2; Briana und Delmar je 1.',
+  },
+  {
+    id: 'emp-8-ueber-durchschnitt-salary',
+    schemaId: 'employee',
+    title: 'Mitarbeiter über dem Durchschnittsgehalt',
+    source: 'Klausurtraining (Skalare Unterabfrage)',
+    difficulty: 'Basis',
+    topics: ['Unterabfrage', 'AVG', 'ORDER BY'],
+    prompt:
+      'Geben Sie `name` und `salary` aller Mitarbeiter aus, deren Gehalt strikt über dem Durchschnittsgehalt aller Mitarbeiter liegt. Sortieren Sie absteigend nach `salary` und alphabetisch nach `name`.',
+    expectedColumns: ['name', 'salary'],
+    orderMatters: true,
+    solutionSql: `SELECT name, salary
+FROM employee
+WHERE salary > (SELECT AVG(salary) FROM employee)
+ORDER BY salary DESC, name ASC;`,
+    hints: ['Vergleichen Sie `salary > (SELECT AVG(salary) FROM employee)`.'],
+    solutionExplanation: 'Das Durchschnittsgehalt liegt bei ca. 564.285,71 — alle 8 Führungskräfte ab 750.000 liegen darüber.',
+  },
+  {
+    id: 'emp-9-vorgesetzte-khalil-distanz',
+    schemaId: 'employee',
+    title: 'Vorgesetzte von Khalil inkl. Abstand (WITH RECURSIVE)',
+    source: 'Klausurtraining (nach Blatt 6 Aufg. 4b)',
+    difficulty: 'Klausurniveau',
+    topics: ['WITH RECURSIVE', 'Zyklenschutz'],
+    prompt:
+      'Finden Sie mittels rekursivem SQL alle direkten und indirekten Vorgesetzten von `\'Khalil\'` (ohne Khalil selbst) inklusive Hierarchie-Abstand (`distanz = 1` für den direkten Chef Hunter, `2` für Delmar, `3` für Ainslie). Geben Sie `name` und `distanz` aufsteigend nach `distanz` sortiert aus.',
+    expectedColumns: ['name', 'distanz'],
+    orderMatters: true,
+    solutionSql: `WITH RECURSIVE Chain(employee_id, manager_id, name, distanz) AS (
+  SELECT m.employee_id, m.manager_id, m.name, 1
+  FROM employee e
+  JOIN employee m ON e.manager_id = m.employee_id
+  WHERE e.name = 'Khalil'
+    AND e.employee_id <> e.manager_id
+  UNION ALL
+  SELECT m.employee_id, m.manager_id, m.name, c.distanz + 1
+  FROM Chain c
+  JOIN employee m ON c.manager_id = m.employee_id
+  WHERE c.manager_id <> c.employee_id
+)
+SELECT name, distanz
+FROM Chain
+ORDER BY distanz ASC;`,
+    hints: ['Denken Sie im Rekursionsschritt an `c.manager_id <> c.employee_id`, damit die Rekursion bei Ainslie stoppt.'],
+    solutionExplanation: 'Khalil (11) → Hunter (1) → Delmar (2) → Ainslie (3).',
+  },
+  {
+    id: 'emp-10-untergebene-delmar',
+    schemaId: 'employee',
+    title: 'Alle Untergebenen von Delmar (WITH RECURSIVE)',
+    source: 'Klausurtraining (Top-Down-Rekursion)',
+    difficulty: 'Mittel',
+    topics: ['WITH RECURSIVE', 'Top-Down-Rekursion'],
+    prompt:
+      'Geben Sie mittels rekursivem SQL die Namen aller direkten und indirekten Untergebenen von `\'Delmar\'` (ohne Delmar selbst) alphabetisch aufsteigend aus.',
+    expectedColumns: ['name'],
+    orderMatters: true,
+    solutionSql: `WITH RECURSIVE Team(employee_id, name) AS (
+  SELECT e.employee_id, e.name
+  FROM employee e
+  JOIN employee d ON e.manager_id = d.employee_id
+  WHERE d.name = 'Delmar'
+    AND e.employee_id <> d.employee_id
+  UNION
+  SELECT e.employee_id, e.name
+  FROM employee e
+  JOIN Team t ON e.manager_id = t.employee_id
+)
+SELECT name
+FROM Team
+ORDER BY name ASC;`,
+    hints: ['Starten Sie bei den direkten Untergebenen von Delmar und folgen Sie rekursiv `e.manager_id = t.employee_id`.'],
+    solutionExplanation: 'Unter Delmar (4) arbeiten Hunter (8), Khalil (11) und Lisette (12).',
+  },
+  {
+    id: 'emp-11-kollegen-von-marlon',
+    schemaId: 'employee',
+    title: 'Direkte Teamkollegen von Marlon',
+    source: 'Klausurtraining (Self-Join)',
+    difficulty: 'Basis',
+    topics: ['Self-Join', 'WHERE'],
+    prompt:
+      'Welche anderen Mitarbeiter (ohne `\'Marlon\'` selbst) haben exakt denselben direkten Vorgesetzten (`manager_id`) wie `\'Marlon\'`? Geben Sie deren `name` aus.',
+    expectedColumns: ['name'],
+    orderMatters: false,
+    solutionSql: `SELECT e.name
+FROM employee e
+JOIN employee m ON e.manager_id = m.manager_id
+WHERE m.name = 'Marlon'
+  AND e.employee_id <> m.employee_id;`,
+    hints: ['Joinen Sie `employee` mit sich selbst über gleiche `manager_id` und schließen Sie Marlon mit `<>` aus.'],
+    solutionExplanation: 'Nur Nissa (14) hat ebenso wie Marlon (13) Jordan (10) als direkten Manager.',
+  },
+  {
+    id: 'emp-12-gehaltsrangliste',
+    schemaId: 'employee',
+    title: 'Gehalts-Rangliste mit Gleichständen (RANK() OVER)',
+    source: 'Klausurtraining (Window Function)',
+    difficulty: 'Mittel',
+    topics: ['Window Function', 'RANK() OVER'],
+    prompt:
+      'Erstellen Sie eine Rangliste aller Mitarbeiter absteigend nach `salary` mittels `RANK() OVER (ORDER BY salary DESC)`. Geben Sie `name`, `salary` und `rang` sortiert nach `rang` aufsteigend und `name` aufsteigend aus.',
+    expectedColumns: ['name', 'salary', 'rang'],
+    orderMatters: true,
+    solutionSql: `SELECT name, salary, RANK() OVER (ORDER BY salary DESC) AS rang
+FROM employee
+ORDER BY rang ASC, name ASC;`,
+    hints: ['Bei `RANK()` teilen sich gleich hohe Gehälter denselben Rang, und der nächste Rang springt (z. B. 1, 2, 2, 2, 5, …).'],
+    solutionExplanation:
+      'Demonstriert das Sprungverhalten von `RANK()` aus VL 19: Drei Manager teilen sich Rang 2 (900k), daher startet der nächste Rang bei 5.',
+  },
+  {
+    id: 'emp-13-teilbaum-groesse-abteilungsleiter',
+    schemaId: 'employee',
+    title: 'Teamgröße unter jedem Bereichsleiter (Rekursion + GROUP BY)',
+    source: 'Klausurtraining (WITH RECURSIVE + Aggregation)',
+    difficulty: 'Klausurniveau',
+    topics: ['WITH RECURSIVE', 'GROUP BY', 'COUNT'],
+    prompt:
+      'Berechnen Sie für jeden direkten Untergebenen der Chefin `\'Ainslie\'` (`Briana`, `Calista`, `Delmar`) dessen `name` und die Gesamtanzahl aller direkten und indirekten Mitarbeiter in dessen Teilbaum (ohne den Bereichsleiter selbst). Sortieren Sie absteigend nach Teamgröße.',
+    expectedColumns: ['name', 'teamgroesse'],
+    orderMatters: true,
+    solutionSql: `WITH RECURSIVE Bereich(leiter_id, leiter_name, member_id) AS (
+  SELECT l.employee_id, l.name, e.employee_id
+  FROM employee l
+  JOIN employee root ON l.manager_id = root.employee_id
+  JOIN employee e ON e.manager_id = l.employee_id
+  WHERE root.name = 'Ainslie'
+    AND l.employee_id <> root.employee_id
+  UNION ALL
+  SELECT b.leiter_id, b.leiter_name, e.employee_id
+  FROM Bereich b
+  JOIN employee e ON e.manager_id = b.member_id
+)
+SELECT leiter_name AS name, COUNT(*) AS teamgroesse
+FROM Bereich
+GROUP BY leiter_id, leiter_name
+ORDER BY teamgroesse DESC;`,
+    hints: [
+      'Tragen Sie `leiter_id` und `leiter_name` als feste Spalten durch die Rekursion mit, während `member_id` den Teilbaum hinabsteigt.',
+      'Gruppieren Sie am Ende nach `(leiter_id, leiter_name)` und zählen Sie `COUNT(*)`.',
+    ],
+    solutionExplanation: 'Calista führt 6 Mitarbeiter, Delmar 3 und Briana 1 (Electra).',
+  },
 ];

@@ -214,4 +214,177 @@ WHERE NOT EXISTS (
     solutionExplanation:
       'Wagner betreut nur einen Schmidt (100), während Meier beide Kunden mit dem Namen Schmidt (100 und 101) betreut.',
   },
+  {
+    id: 'betr-6-mannheim-kunden',
+    schemaId: 'betreuung',
+    title: 'Kunden mit Adresse in Mannheim (LIKE)',
+    source: 'Übung zu Blatt 9 · Aufg. 2',
+    difficulty: 'Basis',
+    topics: ['LIKE', 'WHERE'],
+    prompt:
+      'Finden Sie alle Kunden, in deren `Adresse` das Wort `\'Mannheim\'` vorkommt. Geben Sie `Kundennummer`, `Name` und `Adresse` aufsteigend nach `Kundennummer` aus.',
+    expectedColumns: ['Kundennummer', 'Name', 'Adresse'],
+    orderMatters: true,
+    solutionSql: `SELECT Kundennummer, Name, Adresse
+FROM Kunde
+WHERE Adresse LIKE '%Mannheim%'
+ORDER BY Kundennummer ASC;`,
+    hints: ['Nutzen Sie `WHERE Adresse LIKE \'%Mannheim%\'`.'],
+    solutionExplanation: 'Kunde 100 (Schmidt) und 102 (Müller) haben eine Mannheimer Adresse.',
+  },
+  {
+    id: 'betr-7-mehrfach-betreute-kunden',
+    schemaId: 'betreuung',
+    title: 'Kunden mit mehreren Sachbearbeitern',
+    source: 'Klausurtraining (GROUP BY + HAVING)',
+    difficulty: 'Basis',
+    topics: ['JOIN', 'GROUP BY', 'HAVING'],
+    prompt:
+      'Welche Kunden werden von mehr als einem Sachbearbeiter betreut? Geben Sie `Kundennummer` und `Name` aufsteigend nach `Kundennummer` sortiert aus.',
+    expectedColumns: ['Kundennummer', 'Name'],
+    orderMatters: true,
+    solutionSql: `SELECT k.Kundennummer, k.Name
+FROM Kunde k
+JOIN betreut b ON k.Kundennummer = b.Kundennummer
+GROUP BY k.Kundennummer, k.Name
+HAVING COUNT(*) > 1
+ORDER BY k.Kundennummer ASC;`,
+    hints: ['Gruppieren Sie nach `(k.Kundennummer, k.Name)` und filtern Sie mit `HAVING COUNT(*) > 1`.'],
+    solutionExplanation: 'Schmidt (100), Müller (102) und Fischer (103) haben je 2 Sachbearbeiter.',
+  },
+  {
+    id: 'betr-8-sb-ohne-kunden',
+    schemaId: 'betreuung',
+    title: 'Sachbearbeiter ohne zugewiesene Kunden',
+    source: 'Klausurtraining (Anti-Join)',
+    difficulty: 'Basis',
+    topics: ['NOT EXISTS', 'Anti-Join'],
+    prompt:
+      'Welche Sachbearbeiter betreuen derzeit keinen einzigen Kunden? Geben Sie `PersNr` und `Name` aus.',
+    expectedColumns: ['PersNr', 'Name'],
+    orderMatters: false,
+    solutionSql: `SELECT s.PersNr, s.Name
+FROM Sachbearbeiter s
+WHERE NOT EXISTS (
+  SELECT *
+  FROM betreut b
+  WHERE b.PersNr = s.PersNr
+);`,
+    hints: ['Prüfen Sie mit `WHERE NOT EXISTS` gegen `betreut`.'],
+    solutionExplanation: 'Nur Lehmann (PersNr 5) hat keinen Eintrag in `betreut`.',
+  },
+  {
+    id: 'betr-9-meiste-kunden-sb',
+    schemaId: 'betreuung',
+    title: 'Sachbearbeiter mit den meisten Kunden (CTE + MAX)',
+    source: 'Klausurtraining (WITH / CTE + MAX)',
+    difficulty: 'Mittel',
+    topics: ['WITH / CTE', 'GROUP BY', 'MAX'],
+    prompt:
+      'Bestimmen Sie `Name` und Anzahl betreuter Kunden des Sachbearbeiters (bzw. der Sachbearbeiter bei Gleichstand) mit den meisten betreuten Kunden.',
+    expectedColumns: ['Name', 'Anzahl'],
+    orderMatters: false,
+    solutionSql: `WITH Zaehlung AS (
+  SELECT s.PersNr, s.Name, COUNT(*) AS Anzahl
+  FROM Sachbearbeiter s
+  JOIN betreut b ON s.PersNr = b.PersNr
+  GROUP BY s.PersNr, s.Name
+)
+SELECT Name, Anzahl
+FROM Zaehlung
+WHERE Anzahl = (SELECT MAX(Anzahl) FROM Zaehlung);`,
+    hints: ['Berechnen Sie die Kundenanzahl je Sachbearbeiter in einer `WITH`-CTE und wählen Sie das Maximum.'],
+    solutionExplanation: 'Meier betreut 3 Kunden (100, 101, 102) und liegt damit alleine an der Spitze.',
+  },
+  {
+    id: 'betr-10-steuerrecht-kunden',
+    schemaId: 'betreuung',
+    title: 'Kunden im Fachgebiet Steuerrecht',
+    source: 'Klausurtraining (3-Wege-JOIN + DISTINCT)',
+    difficulty: 'Basis',
+    topics: ['3-Wege-JOIN', 'DISTINCT'],
+    prompt:
+      'Geben Sie die Namen (ohne Duplikate) aller Kunden aus, die von mindestens einem Sachbearbeiter aus dem Fachgebiet `\'Steuerrecht\'` betreut werden. Sortieren Sie alphabetisch aufsteigend.',
+    expectedColumns: ['Name'],
+    orderMatters: true,
+    requiresDistinct: true,
+    solutionSql: `SELECT DISTINCT k.Name
+FROM Sachbearbeiter s
+JOIN betreut b ON s.PersNr = b.PersNr
+JOIN Kunde k ON b.Kundennummer = k.Kundennummer
+WHERE s.Fachgebiet = 'Steuerrecht'
+ORDER BY k.Name ASC;`,
+    hints: ['Verbinden Sie `Sachbearbeiter` → `betreut` → `Kunde`, filtern Sie auf `s.Fachgebiet = \'Steuerrecht\'` und denken Sie an `DISTINCT` (es gibt zwei Kunden namens Schmidt!).'],
+    solutionExplanation: 'Ohne `DISTINCT` würde Schmidt zweimal erscheinen — das eindeutige Ergebnis lautet Fischer, Müller, Schmidt.',
+  },
+  {
+    id: 'betr-11-kunden-zwei-fachgebiete',
+    schemaId: 'betreuung',
+    title: 'Kunden in mindestens 2 verschiedenen Fachgebieten',
+    source: 'Klausurtraining (COUNT DISTINCT + HAVING)',
+    difficulty: 'Mittel',
+    topics: ['3-Wege-JOIN', 'COUNT(DISTINCT)', 'HAVING'],
+    prompt:
+      'Welche Kunden werden von Sachbearbeitern aus mindestens 2 **verschiedenen** Fachgebieten betreut? Geben Sie `Kundennummer` und `Name` aufsteigend nach `Kundennummer` aus.',
+    expectedColumns: ['Kundennummer', 'Name'],
+    orderMatters: true,
+    solutionSql: `SELECT k.Kundennummer, k.Name
+FROM Kunde k
+JOIN betreut b ON k.Kundennummer = b.Kundennummer
+JOIN Sachbearbeiter s ON b.PersNr = s.PersNr
+GROUP BY k.Kundennummer, k.Name
+HAVING COUNT(DISTINCT s.Fachgebiet) >= 2
+ORDER BY k.Kundennummer ASC;`,
+    hints: ['Gruppieren Sie nach Kunde und prüfen Sie `HAVING COUNT(DISTINCT s.Fachgebiet) >= 2`.'],
+    solutionExplanation:
+      'Schmidt (100: Steuerrecht & Firmenkunden), Müller (102: Steuerrecht & Privatkunden) und Fischer (103: Firmenkunden & Steuerrecht) werden fachübergreifend betreut.',
+  },
+  {
+    id: 'betr-12-gemeinsame-kunden-paare',
+    schemaId: 'betreuung',
+    title: 'Sachbearbeiter-Paare mit gemeinsamen Kunden (Self-Join)',
+    source: 'Klausurtraining (Self-Join ohne Spiegelduplikate)',
+    difficulty: 'Klausurniveau',
+    topics: ['Self-Join', 'DISTINCT'],
+    prompt:
+      'Finden Sie alle Paare verschiedener Sachbearbeiter, die mindestens einen gemeinsamen Kunden betreuen. Geben Sie `Name1` und `Name2` so aus, dass jedes Paar nur **einmal** vorkommt (`s1.PersNr < s2.PersNr`). Sortieren Sie alphabetisch nach `Name1` und `Name2`.',
+    expectedColumns: ['Name1', 'Name2'],
+    orderMatters: true,
+    requiresDistinct: true,
+    solutionSql: `SELECT DISTINCT s1.Name AS Name1, s2.Name AS Name2
+FROM betreut b1
+JOIN betreut b2 ON b1.Kundennummer = b2.Kundennummer AND b1.PersNr < b2.PersNr
+JOIN Sachbearbeiter s1 ON b1.PersNr = s1.PersNr
+JOIN Sachbearbeiter s2 ON b2.PersNr = s2.PersNr
+ORDER BY Name1 ASC, Name2 ASC;`,
+    hints: [
+      'Joinen Sie `betreut` mit sich selbst über gleiche `Kundennummer` und erzwingen Sie `b1.PersNr < b2.PersNr` gegen Selbst- und Spiegelpaare.',
+    ],
+    solutionExplanation:
+      'Es ergeben sich 3 Paare: (Meier, Becker) über Kunde 102, (Meier, Wagner) über Kunde 100 und (Wagner, Krause) über Kunde 103.',
+  },
+  {
+    id: 'betr-13-fachgebiete-statistik',
+    schemaId: 'betreuung',
+    title: 'Auslastung je Fachgebiet (Sachbearbeiter & Betreuungen)',
+    source: 'Klausurtraining (LEFT JOIN + COUNT DISTINCT)',
+    difficulty: 'Klausurniveau',
+    topics: ['LEFT JOIN', 'GROUP BY', 'COUNT(DISTINCT)'],
+    prompt:
+      'Geben Sie für jedes `Fachgebiet` die Anzahl seiner Sachbearbeiter (`COUNT(DISTINCT s.PersNr)`) sowie die Gesamtanzahl aller Betreuungszuordnungen (`COUNT(b.Kundennummer)`) aus. Sortieren Sie absteigend nach Betreuungszuordnungen und alphabetisch nach `Fachgebiet`.',
+    expectedColumns: ['Fachgebiet', 'AnzahlSB', 'AnzahlBetreuungen'],
+    orderMatters: true,
+    solutionSql: `SELECT s.Fachgebiet,
+       COUNT(DISTINCT s.PersNr) AS AnzahlSB,
+       COUNT(b.Kundennummer) AS AnzahlBetreuungen
+FROM Sachbearbeiter s
+LEFT JOIN betreut b ON s.PersNr = b.PersNr
+GROUP BY s.Fachgebiet
+ORDER BY AnzahlBetreuungen DESC, s.Fachgebiet ASC;`,
+    hints: [
+      'Durch den `LEFT JOIN` zu `betreut` taucht ein Sachbearbeiter mit mehreren Kunden mehrfach auf — daher muss `COUNT(DISTINCT s.PersNr)` für die Anzahl Sachbearbeiter verwendet werden!',
+    ],
+    solutionExplanation:
+      'Steuerrecht: 2 SB, 4 Betreuungen; Firmenkunden: 2 SB (inkl. Lehmann!), 2 Betreuungen; Privatkunden: 1 SB, 2 Betreuungen.',
+  },
 ];

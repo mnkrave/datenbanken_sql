@@ -238,4 +238,156 @@ ORDER BY AvgPreis DESC;`,
     solutionExplanation:
       'Aggregatbedingungen wie AVG(j.Preis) > 25 gehören immer in die HAVING-Klausel nach GROUP BY.',
   },
+  {
+    id: 'weingut-7-weine-ohne-jahrgang',
+    schemaId: 'weingut',
+    title: 'Weine ohne eingetragenen Jahrgang',
+    source: 'Klausurtraining (Anti-Join)',
+    difficulty: 'Basis',
+    topics: ['NOT EXISTS', 'Anti-Join'],
+    prompt:
+      'Welche Weine aus der Tabelle `Wein` besitzen bisher keinen einzigen Jahrgang in der Tabelle `Jahrgang`? Geben Sie deren `Name` aus.',
+    expectedColumns: ['Name'],
+    orderMatters: false,
+    solutionSql: `SELECT w.Name
+FROM Wein w
+WHERE NOT EXISTS (
+  SELECT *
+  FROM Jahrgang j
+  WHERE j.WeinID = w.ID
+);`,
+    hints: ['Prüfen Sie mit `WHERE NOT EXISTS` gegen `Jahrgang` über `j.WeinID = w.ID`.'],
+    solutionExplanation: 'Nur Marbuzet (ID 1) hat noch keinen Jahrgangseintrag.',
+  },
+  {
+    id: 'weingut-8-anzahl-weine-pro-farbe',
+    schemaId: 'weingut',
+    title: 'Anzahl der Weine pro Farbe',
+    source: 'Klausurtraining (GROUP BY + COUNT)',
+    difficulty: 'Basis',
+    topics: ['JOIN', 'GROUP BY', 'COUNT'],
+    prompt:
+      'Wie viele Weine gibt es jeweils pro Rebsorten-`Farbe` (`Rot`, `Weiß`)? Geben Sie `Farbe` und `AnzahlWeine` alphabetisch nach `Farbe` sortiert aus.',
+    expectedColumns: ['Farbe', 'AnzahlWeine'],
+    orderMatters: true,
+    solutionSql: `SELECT r.Farbe, COUNT(w.ID) AS AnzahlWeine
+FROM Rebsorte r
+LEFT JOIN Wein w ON r.Sorte = w.RSorte
+GROUP BY r.Farbe
+ORDER BY r.Farbe ASC;`,
+    hints: ['Gruppieren Sie nach `r.Farbe` und zählen Sie `COUNT(w.ID)`.'],
+    solutionExplanation: 'Es gibt 1 Rotwein (Marbuzet) und 4 Weißweine.',
+  },
+  {
+    id: 'weingut-9-max-preis-pro-jahr',
+    schemaId: 'weingut',
+    title: 'Höchster Weinpreis pro Jahrgang',
+    source: 'Klausurtraining (GROUP BY + MAX)',
+    difficulty: 'Basis',
+    topics: ['GROUP BY', 'MAX', 'ORDER BY'],
+    prompt:
+      'Geben Sie für jedes in `Jahrgang` vorkommende `Jahr` den maximalen Preis (`MAX(Preis)`) aufsteigend nach `Jahr` sortiert aus.',
+    expectedColumns: ['Jahr', 'MaxPreis'],
+    orderMatters: true,
+    solutionSql: `SELECT Jahr, MAX(Preis) AS MaxPreis
+FROM Jahrgang
+GROUP BY Jahr
+ORDER BY Jahr ASC;`,
+    hints: ['Gruppieren Sie direkt in `Jahrgang` nach `Jahr`.'],
+    solutionExplanation: 'Im Jahr 2004 gibt es zwei Einträge (14 € und 28 €), sodass `MAX(Preis)` 28,00 € liefert.',
+  },
+  {
+    id: 'weingut-10-weine-mehrere-jahrgaenge',
+    schemaId: 'weingut',
+    title: 'Weine mit mehreren Jahrgängen',
+    source: 'Klausurtraining (HAVING)',
+    difficulty: 'Mittel',
+    topics: ['JOIN', 'GROUP BY', 'HAVING'],
+    prompt:
+      'Welche Weine sind mit mehr als einem Jahrgang in der Datenbank vertreten? Geben Sie den Namen des Weins und die Anzahl der Jahrgänge (`Name`, `Anzahl`) alphabetisch nach `Name` sortiert aus.',
+    expectedColumns: ['Name', 'Anzahl'],
+    orderMatters: true,
+    solutionSql: `SELECT w.Name, COUNT(*) AS Anzahl
+FROM Wein w
+JOIN Jahrgang j ON w.ID = j.WeinID
+GROUP BY w.ID, w.Name
+HAVING COUNT(*) > 1
+ORDER BY w.Name ASC;`,
+    hints: ['Gruppieren Sie nach `(w.ID, w.Name)` und filtern Sie mit `HAVING COUNT(*) > 1`.'],
+    solutionExplanation: 'Dr. Bassermann-Jordan (2003, 2004) und Herrgottsacker (2001, 2005) haben je 2 Jahrgänge.',
+  },
+  {
+    id: 'weingut-11-preissteigerung-selfjoin',
+    schemaId: 'weingut',
+    title: 'Weine mit Preissteigerung im Zeitverlauf (Self-Join)',
+    source: 'Klausurtraining (Self-Join)',
+    difficulty: 'Mittel',
+    topics: ['Self-Join', 'JOIN'],
+    prompt:
+      'Welche Weine hatten in einem späteren Jahr einen höheren Preis als in einem früheren Jahr? Geben Sie `Name`, das frühere `Jahr` und das spätere `Jahr` (Spalten: `Name`, `FrueheresJahr`, `SpaeteresJahr`) aus.',
+    expectedColumns: ['Name', 'FrueheresJahr', 'SpaeteresJahr'],
+    orderMatters: false,
+    solutionSql: `SELECT w.Name, j1.Jahr AS FrueheresJahr, j2.Jahr AS SpaeteresJahr
+FROM Wein w
+JOIN Jahrgang j1 ON w.ID = j1.WeinID
+JOIN Jahrgang j2 ON w.ID = j2.WeinID
+WHERE j1.Jahr < j2.Jahr
+  AND j2.Preis > j1.Preis;`,
+    hints: [
+      'Joinen Sie `Jahrgang` zweimal (`j1` und `j2`) für denselben Wein (`j1.WeinID = j2.WeinID`).',
+      'Vergleichen Sie `j1.Jahr < j2.Jahr AND j2.Preis > j1.Preis`.',
+    ],
+    solutionExplanation:
+      'Herrgottsacker stieg von 50,00 € (2001) auf 55,00 € (2005), während Dr. Bassermann-Jordan von 2003 auf 2004 günstiger wurde.',
+  },
+  {
+    id: 'weingut-12-weisswein-rangliste',
+    schemaId: 'weingut',
+    title: 'Preis-Rangliste exzellenter Weißweine',
+    source: 'Klausurtraining (Window Function)',
+    difficulty: 'Mittel',
+    topics: ['Window Function', 'RANK() OVER', '3-Wege-JOIN'],
+    prompt:
+      'Erstellen Sie eine Rangliste aller Jahrgänge von Weißweinen (`Farbe = \'Weiß\'`) mit exzellenter Qualität (`Qualitaet = 1`), absteigend sortiert nach `Preis` (teuerster = Rang 1). Geben Sie `Name` (des Weins), `Jahr`, `Preis` und `Rang` aufsteigend nach `Rang` aus.',
+    expectedColumns: ['Name', 'Jahr', 'Preis', 'Rang'],
+    orderMatters: true,
+    solutionSql: `SELECT w.Name, j.Jahr, j.Preis, RANK() OVER (ORDER BY j.Preis DESC) AS Rang
+FROM Rebsorte r
+JOIN Wein w ON r.Sorte = w.RSorte
+JOIN Jahrgang j ON w.ID = j.WeinID
+WHERE r.Farbe = 'Weiß'
+  AND j.Qualitaet = 1
+ORDER BY Rang ASC;`,
+    hints: [
+      'Filtern Sie zuerst auf `r.Farbe = \'Weiß\' AND j.Qualitaet = 1` und wenden Sie dann `RANK() OVER (ORDER BY j.Preis DESC)` an.',
+    ],
+    solutionExplanation:
+      'Herrgottsacker 2005 (55 €) belegt Rang 1, gefolgt von Herrgottsacker 2001 (50 €), Schlossberg Reserve 2004 (28 €) und Dr. Bassermann-Jordan 2003 (20 €).',
+  },
+  {
+    id: 'weingut-13-teurer-als-alle-nicht-exzellenten',
+    schemaId: 'weingut',
+    title: 'Teurer als ALLE nicht-exzellenten Jahrgänge (> ALL)',
+    source: 'Klausurtraining (> ALL)',
+    difficulty: 'Klausurniveau',
+    topics: ['> ALL', 'Unterabfrage', 'DISTINCT'],
+    prompt:
+      'Geben Sie die Namen (ohne Duplikate) aller Weine aus, für die mindestens ein Jahrgang existiert, der strikt teurer ist als **alle** Jahrgänge mit `Qualitaet >= 2`.',
+    expectedColumns: ['Name'],
+    orderMatters: false,
+    requiresDistinct: true,
+    solutionSql: `SELECT DISTINCT w.Name
+FROM Wein w
+JOIN Jahrgang j ON w.ID = j.WeinID
+WHERE j.Preis > ALL (
+  SELECT Preis
+  FROM Jahrgang
+  WHERE Qualitaet >= 2
+);`,
+    hints: [
+      'Nutzen Sie `j.Preis > ALL (SELECT Preis FROM Jahrgang WHERE Qualitaet >= 2)` (oder `> (SELECT MAX(Preis) ...)`).',
+    ],
+    solutionExplanation:
+      'Der teuerste Jahrgang mit Qualität ≥ 2 ist Kirchenstück 2006 (32 €). Nur Herrgottsacker (50 € und 55 €) übertrifft diesen Wert.',
+  },
 ];
