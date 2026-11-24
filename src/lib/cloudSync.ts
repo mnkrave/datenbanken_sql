@@ -10,6 +10,33 @@ export interface CloudProgressResponse {
   dailySession: string[] | null;
 }
 
+export interface GroupMemberProgress {
+  userId: string;
+  email: string;
+  displayName: string;
+  avatarUrl: string | null;
+  role: 'admin' | 'member';
+  solvedIds: string[];
+  activeDays: string[];
+  lastActiveDate: string | null;
+}
+
+export interface GroupInvitation {
+  emailLower: string;
+  emailDisplay: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface GroupOverviewResponse {
+  myUserId: string;
+  myEmail: string;
+  myRole: 'admin' | 'member' | null;
+  isMember: boolean;
+  members: GroupMemberProgress[];
+  invitations: GroupInvitation[];
+}
+
 export type GetTokenFn = () => Promise<string | null>;
 
 async function authedRequest<T>(
@@ -36,7 +63,14 @@ async function authedRequest<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`API ${response.status}`);
+    let errMsg = `API ${response.status}`;
+    try {
+      const payload = (await response.json()) as { error?: string };
+      if (payload?.error) errMsg = payload.error;
+    } catch {
+      // Ignore parse error
+    }
+    throw new Error(errMsg);
   }
 
   return (await response.json()) as T;
@@ -101,5 +135,47 @@ export async function syncDraftToCloud(
 export async function resetCloudProgress(getToken: GetTokenFn): Promise<void> {
   await authedRequest(getToken, {
     method: 'DELETE',
+  });
+}
+
+export async function fetchGroupOverview(
+  getToken: GetTokenFn
+): Promise<GroupOverviewResponse | null> {
+  return authedRequest<GroupOverviewResponse>(getToken, {
+    path: '/api/group',
+    method: 'GET',
+  });
+}
+
+export async function inviteGroupMember(
+  getToken: GetTokenFn,
+  email: string
+): Promise<{ ok: boolean; emailSent: boolean; message: string } | null> {
+  return authedRequest(getToken, {
+    path: '/api/group',
+    method: 'POST',
+    body: JSON.stringify({ action: 'invite', email }),
+  });
+}
+
+export async function revokeGroupInvitation(
+  getToken: GetTokenFn,
+  emailLower: string
+): Promise<void> {
+  await authedRequest(getToken, {
+    path: '/api/group',
+    method: 'DELETE',
+    body: JSON.stringify({ action: 'revoke_invite', emailLower }),
+  });
+}
+
+export async function removeGroupMember(
+  getToken: GetTokenFn,
+  targetUserId: string
+): Promise<void> {
+  await authedRequest(getToken, {
+    path: '/api/group',
+    method: 'DELETE',
+    body: JSON.stringify({ action: 'remove_member', targetUserId }),
   });
 }

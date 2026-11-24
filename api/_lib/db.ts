@@ -64,6 +64,31 @@ export function ensureSchema(): Promise<void> {
           PRIMARY KEY (user_id, date_key)
         )
       `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS study_group_members (
+          user_id TEXT PRIMARY KEY,
+          email TEXT NOT NULL,
+          email_lower TEXT NOT NULL,
+          display_name TEXT NOT NULL,
+          avatar_url TEXT,
+          role TEXT NOT NULL DEFAULT 'member',
+          joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS study_group_invitations (
+          email_lower TEXT PRIMARY KEY,
+          email_display TEXT NOT NULL,
+          invited_by_user_id TEXT NOT NULL,
+          clerk_invitation_id TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          accepted_at TIMESTAMPTZ
+        )
+      `;
     })().catch((err) => {
       schemaReadyPromise = null;
       throw err;

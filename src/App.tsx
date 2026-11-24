@@ -22,6 +22,7 @@ import {
 import { ConfirmResetDialog } from './components/ConfirmResetDialog';
 import { DailyDashboard } from './components/DailyDashboard';
 import { ExerciseWorkspace } from './components/ExerciseWorkspace';
+import { GroupView } from './components/GroupView';
 import { Header, type AppView } from './components/Header';
 import { SheetsView } from './components/SheetsView';
 import type { Exercise, ProgressState } from './types/sql';
@@ -205,6 +206,8 @@ export function App({ clerkEnabled = false }: AppProps) {
       document.title = 'Übungsblätter | DBS I · SQL-Trainer';
     } else if (view === 'catalog') {
       document.title = 'Alle 8 Schemas | DBS I · SQL-Trainer';
+    } else if (view === 'group') {
+      document.title = 'Lerngruppe | DBS I · SQL-Trainer';
     } else {
       document.title = `${activeExercise.title} | DBS I · SQL-Trainer`;
     }
@@ -241,7 +244,7 @@ export function App({ clerkEnabled = false }: AppProps) {
     window.scrollTo({ top: 0 });
   };
 
-  const handleNavigate = (target: 'daily' | 'sheets' | 'catalog') => {
+  const handleNavigate = (target: 'daily' | 'sheets' | 'catalog' | 'group') => {
     setView(target);
     window.scrollTo({ top: 0 });
   };
@@ -337,6 +340,13 @@ export function App({ clerkEnabled = false }: AppProps) {
             includeRaTasks={includeRaTasks}
             onToggleRaTasks={setIncludeRaTasks}
             onStartExercise={handleStartExercise}
+          />
+        ) : view === 'group' ? (
+          <GroupView
+            clerkEnabled={clerkEnabled}
+            todayKey={todayKey}
+            dailyPlan={dailyPlan}
+            officialSheetIds={officialSheetIds}
           />
         ) : (
           <DailyDashboard

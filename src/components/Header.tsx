@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
-import { CalendarCheck2, Database, FileText, Flame, Library, Moon, RotateCcw, Sun } from 'lucide-react';
+import { CalendarCheck2, Database, FileText, Flame, Library, Moon, RotateCcw, Sun, Users } from 'lucide-react';
 import type { CloudSyncStatus } from '../lib/cloudSync';
 import { AuthControls } from './AuthControls';
 
-export type AppView = 'daily' | 'sheets' | 'catalog' | 'workspace';
+export type AppView = 'daily' | 'sheets' | 'catalog' | 'group' | 'workspace';
 
 interface HeaderProps {
   view: AppView;
-  onNavigate: (view: 'daily' | 'sheets' | 'catalog') => void;
+  onNavigate: (view: 'daily' | 'sheets' | 'catalog' | 'group') => void;
   dailySolvedCount: number;
   dailyTotalCount: number;
   sheetsSolvedCount: number;
@@ -134,6 +134,15 @@ export function Header({
           >
             <Library size={16} aria-hidden="true" />
             Alle Schemas ({totalSolvedCount}/{totalExerciseCount})
+          </button>
+          <button
+            type="button"
+            className="nav-pill"
+            aria-current={view === 'group' ? 'page' : undefined}
+            onClick={() => onNavigate('group')}
+          >
+            <Users size={16} aria-hidden="true" />
+            Lerngruppe
           </button>
         </nav>
 
