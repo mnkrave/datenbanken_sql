@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { CalendarCheck2, Database, FileText, Flame, Library, Moon, RotateCcw, Sun } from 'lucide-react';
+import type { CloudSyncStatus } from '../lib/cloudSync';
+import { AuthControls } from './AuthControls';
 
 export type AppView = 'daily' | 'sheets' | 'catalog' | 'workspace';
 
@@ -13,6 +15,8 @@ interface HeaderProps {
   totalSolvedCount: number;
   totalExerciseCount: number;
   streak: number;
+  clerkEnabled?: boolean;
+  syncStatus?: CloudSyncStatus;
   onRequestReset: () => void;
 }
 
@@ -37,6 +41,8 @@ export function Header({
   totalSolvedCount,
   totalExerciseCount,
   streak,
+  clerkEnabled = false,
+  syncStatus = 'local',
   onRequestReset,
 }: HeaderProps) {
   // Stay in sync when another browser tab changes color-scheme
@@ -165,6 +171,8 @@ export function Header({
           >
             <RotateCcw size={16} aria-hidden="true" />
           </button>
+
+          <AuthControls clerkEnabled={clerkEnabled} syncStatus={syncStatus} />
         </div>
       </div>
     </header>

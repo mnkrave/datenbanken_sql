@@ -1,4 +1,4 @@
-import { ALL_SCHEMAS, getExercisesForSchema } from '../data/schemas';
+import { ALL_SCHEMAS, getExerciseById, getExercisesForSchema } from '../data/schemas';
 import type { Exercise, ProgressState } from '../types/sql';
 
 const STORAGE_KEY = 'dbs1_sql_trainer_progress_v1';
@@ -47,6 +47,28 @@ export function getDailyPlan(dateKey = getTodayKey()): Exercise[] {
   });
 }
 
+/**
+ * Resolves a user's daily plan from persisted frozen IDs when available so that adding
+ * new exercises in future updates never mutates an already started/completed day.
+ * Falls back per schema only if a legacy ID no longer exists.
+ */
+export function resolveDailyPlan(dateKey: string, frozenIds?: string[] | null): Exercise[] {
+  const fallback = getDailyPlan(dateKey);
+  if (!frozenIds || frozenIds.length === 0) {
+    return fallback;
+  }
+
+  const bySchema = new Map<string, Exercise>();
+  for (const id of frozenIds) {
+    const ex = getExerciseById(id);
+    if (ex && !bySchema.has(ex.schemaId)) {
+      bySchema.set(ex.schemaId, ex);
+    }
+  }
+
+  return fallback.map((fb) => bySchema.get(fb.schemaId) ?? fb);
+}
+
 export function emptyProgress(): ProgressState {
   return {
     solvedIds: {},
@@ -85,14 +107,15 @@ export function saveProgress(state: ProgressState): void {
 export function markExerciseSolved(
   prev: ProgressState,
   exerciseId: string,
-  todayKey = getTodayKey()
+  todayKey = getTodayKey(),
+  currentDailyPlan?: Exercise[]
 ): ProgressState {
   const solvedIds = { ...prev.solvedIds, [exerciseId]: todayKey };
   const activeDays = prev.activeDays.includes(todayKey)
     ? prev.activeDays
     : [...prev.activeDays, todayKey].sort();
 
-  const dailyPlan = getDailyPlan(todayKey);
+  const dailyPlan = currentDailyPlan ?? getDailyPlan(todayKey);
   const allDailySolved = dailyPlan.every((ex) => Boolean(solvedIds[ex.id]));
   const completedDailyDates =
     allDailySolved && !prev.completedDailyDates.includes(todayKey)
