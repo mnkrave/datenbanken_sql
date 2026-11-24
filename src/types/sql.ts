@@ -6,7 +6,9 @@ export type SchemaId =
   | 'unternehmen'
   | 'employee'
   | 'tickets'
-  | 'betreuung';
+  | 'betreuung'
+  | 'lr_semijoin'
+  | 'fd_relation';
 
 export type Difficulty = 'Basis' | 'Mittel' | 'Klausurniveau';
 
@@ -64,6 +66,49 @@ export interface Exercise {
   solutionExplanation: string;
   /** Optional starter SQL shown when user clicks "Startvorlage" or empty by default */
   starterSql?: string;
+  /** Optional SQL executed inside the rolled-back transaction before user/reference SQL (e.g. DROP TABLE for DDL tasks) */
+  setupSql?: string;
+  /** Optional SQL executed after user/reference SQL to inspect DB state for DDL/DML exercises */
+  verificationSql?: string;
+  /** Explanatory text shown in the workspace spec-box for verificationSql tasks */
+  verificationNote?: string;
+  /** Regex pattern (case-insensitive, checked on comment-stripped SQL) for forbidden keywords */
+  forbiddenSqlPattern?: string;
+  /** German explanation shown when forbiddenSqlPattern matches */
+  forbiddenSqlMessage?: string;
+  /** Require exactly one SQL statement (e.g. Blatt 6 Aufg. 2b) */
+  singleStatementOnly?: boolean;
+  /** Allow empty expected result on the base schema instance when extraTestCases verify non-empty violations */
+  allowEmptyExpected?: boolean;
+  /** Additional rolled-back test cases run against both solutionSql and userSql */
+  extraTestCases?: { label: string; setupSql: string }[];
+}
+
+export interface WorksheetSubtask {
+  label: string;
+  exerciseId: string;
+  kindBadge?: string;
+}
+
+export interface WorksheetTaskGroup {
+  id: string;
+  taskNumber: string;
+  title: string;
+  schemaId: SchemaId;
+  intro: string;
+  isOfficialSql: boolean;
+  originalKind?: string;
+  subtasks: WorksheetSubtask[];
+}
+
+export interface WorksheetDef {
+  sheetNumber: number;
+  title: string;
+  date: string;
+  chapters: string;
+  summary: string;
+  infoNote?: string;
+  tasks: WorksheetTaskGroup[];
 }
 
 export interface QueryResult {

@@ -156,13 +156,102 @@ function compareResults(
   };
 }
 
+/**
+ * Removes SQL line (-- ...) and block (/* ... *\/) comments while keeping single/double quoted literals intact.
+ */
+function stripSqlComments(sql: string): string {
+  let out = '';
+  let inSingle = false;
+  let inDouble = false;
+
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i];
+    const next = sql[i + 1];
+
+    if (!inSingle && !inDouble) {
+      if (ch === '-' && next === '-') {
+        while (i < sql.length && sql[i] !== '\n') i++;
+        if (i < sql.length) out += '\n';
+        continue;
+      }
+      if (ch === '/' && next === '*') {
+        i += 2;
+        while (i < sql.length && !(sql[i] === '*' && sql[i + 1] === '/')) i++;
+        i++;
+        out += ' ';
+        continue;
+      }
+    }
+
+    if (ch === "'" && !inDouble) {
+      out += ch;
+      if (inSingle && next === "'") {
+        out += next;
+        i++;
+      } else {
+        inSingle = !inSingle;
+      }
+      continue;
+    }
+
+    if (ch === '"' && !inSingle) {
+      inDouble = !inDouble;
+      out += ch;
+      continue;
+    }
+
+    out += ch;
+  }
+
+  return out;
+}
+
+function hasMultipleStatements(sql: string): boolean {
+  const withoutComments = stripSqlComments(sql);
+  // Blank out single-quoted and double-quoted literals so ';' inside strings does not split statements
+  let cleaned = '';
+  let inSingle = false;
+  let inDouble = false;
+
+  for (let i = 0; i < withoutComments.length; i++) {
+    const ch = withoutComments[i];
+    const next = withoutComments[i + 1];
+    if (ch === "'" && !inDouble) {
+      if (inSingle && next === "'") {
+        i++;
+      } else {
+        inSingle = !inSingle;
+      }
+      continue;
+    }
+    if (ch === '"' && !inSingle) {
+      inDouble = !inDouble;
+      continue;
+    }
+    if (!inSingle && !inDouble) {
+      cleaned += ch;
+    }
+  }
+
+  const parts = cleaned
+    .split(';')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  return parts.length > 1;
+}
+
 export async function evaluateExercise(
   exercise: Exercise,
   userSql: string
 ): Promise<EvaluationResult> {
+  const baseExecOpts =
+    exercise.setupSql || exercise.verificationSql
+      ? { setupSql: exercise.setupSql, verificationSql: exercise.verificationSql }
+      : undefined;
+
   let expectedResult: QueryResult;
   try {
-    expectedResult = await executeQuery(exercise.schemaId, exercise.solutionSql);
+    expectedResult = await executeQuery(exercise.schemaId, exercise.solutionSql, baseExecOpts);
   } catch (err) {
     const errorInfo = await buildSqlErrorInfo(exercise.solutionSql, exercise.schemaId, err);
     return {
@@ -174,9 +263,35 @@ export async function evaluateExercise(
     };
   }
 
+  if (exercise.singleStatementOnly && hasMultipleStatements(userSql)) {
+    return {
+      status: 'wrong',
+      expectedResult,
+      headline: 'Nur eine einzige SQL-Anweisung erlaubt',
+      details: [
+        'Für diese Teilaufgabe dürfen alle betroffenen Datensätze nur mit genau EINEM SQL-Befehl bearbeitet werden (keine mehreren durch ; getrennten Anweisungen).',
+      ],
+    };
+  }
+
+  if (exercise.forbiddenSqlPattern) {
+    const re = new RegExp(exercise.forbiddenSqlPattern, 'i');
+    if (re.test(stripSqlComments(userSql))) {
+      return {
+        status: 'wrong',
+        expectedResult,
+        headline: 'Unzulässiges Konstrukt für diese Teilaufgabe',
+        details: [
+          exercise.forbiddenSqlMessage ??
+            'Deine Abfrage verwendet ein Schlüsselwort, das in dieser Teilaufgabe ausdrücklich nicht erlaubt ist.',
+        ],
+      };
+    }
+  }
+
   let userResult: QueryResult;
   try {
-    userResult = await executeQuery(exercise.schemaId, userSql);
+    userResult = await executeQuery(exercise.schemaId, userSql, baseExecOpts);
   } catch (err) {
     const errorInfo = await buildSqlErrorInfo(userSql, exercise.schemaId, err);
     return {
@@ -192,8 +307,68 @@ export async function evaluateExercise(
   }
 
   const verdict = compareResults(userResult, expectedResult, exercise);
+  if (!verdict.ok) {
+    return {
+      status: 'wrong',
+      userResult,
+      expectedResult,
+      headline: verdict.headline,
+      details: verdict.details,
+    };
+  }
+
+  if (exercise.extraTestCases && exercise.extraTestCases.length > 0) {
+    for (const tc of exercise.extraTestCases) {
+      const combinedSetup = [exercise.setupSql, tc.setupSql].filter(Boolean).join('\n');
+      const tcOpts = {
+        setupSql: combinedSetup,
+        verificationSql: exercise.verificationSql,
+      };
+
+      const tcExpected = await executeQuery(exercise.schemaId, exercise.solutionSql, tcOpts);
+
+      let tcUser: QueryResult;
+      try {
+        tcUser = await executeQuery(exercise.schemaId, userSql, tcOpts);
+      } catch (err) {
+        const errorInfo = await buildSqlErrorInfo(userSql, exercise.schemaId, err);
+        return {
+          status: 'wrong',
+          userResult,
+          expectedResult: tcExpected,
+          headline: 'Besteht nicht alle Testfälle',
+          details: [`Fehler im Zusatztest „${tc.label}“: ${errorInfo.title}`],
+        };
+      }
+
+      const tcVerdict = compareResults(tcUser, tcExpected, exercise);
+      if (!tcVerdict.ok) {
+        return {
+          status: 'wrong',
+          userResult: tcUser,
+          expectedResult: tcExpected,
+          headline: 'Besteht nicht alle Testfälle',
+          details: [`Fehlgeschlagener Testfall: ${tc.label}`, ...tcVerdict.details],
+        };
+      }
+    }
+
+    return {
+      status: 'correct',
+      userResult,
+      expectedResult,
+      headline: verdict.headline,
+      details: [
+        ...verdict.details,
+        `Alle ${exercise.extraTestCases.length} zusätzlichen Testfälle bestanden (${exercise.extraTestCases
+          .map((t) => t.label)
+          .join('; ')}).`,
+      ],
+    };
+  }
+
   return {
-    status: verdict.ok ? 'correct' : 'wrong',
+    status: 'correct',
     userResult,
     expectedResult,
     headline: verdict.headline,
@@ -206,7 +381,10 @@ export async function runSandboxQuery(
   userSql: string
 ): Promise<EvaluationResult> {
   try {
-    const userResult = await executeQuery(exercise.schemaId, userSql);
+    const userResult = await executeQuery(exercise.schemaId, userSql, {
+      setupSql: exercise.setupSql,
+      fallbackVerificationSql: exercise.verificationSql,
+    });
     return {
       status: 'sandbox',
       userResult,

@@ -395,4 +395,42 @@ ORDER BY teamgroesse DESC;`,
     ],
     solutionExplanation: 'Calista führt 6 Mitarbeiter, Delmar 3 und Briana 1 (Electra).',
   },
+  {
+    id: 'emp-14-fakultaet-rekursiv',
+    schemaId: 'employee',
+    title: 'Fakultät n! für 0 ≤ n ≤ 10 (WITH RECURSIVE)',
+    source: 'Übungsblatt 6 · Aufg. 4(a)',
+    difficulty: 'Klausurniveau',
+    topics: ['WITH RECURSIVE', 'Arithmetik', 'UNION ALL'],
+    prompt:
+      'Schreiben Sie eine rekursive SQL-Anfrage (ohne Tabellenzugriff auf `employee`), die für alle natürlichen Zahlen $n$ mit $0 \\le n \\le 10$ die Fakultät $n!$ berechnet. Geben Sie `n` und `fact` (in dieser Reihenfolge) aufsteigend nach `n` sortiert aus.',
+    expectedColumns: ['n', 'fact'],
+    orderMatters: true,
+    solutionSql: `WITH RECURSIVE Factorials(n, fact) AS (
+  SELECT 0, 1
+  UNION ALL
+  SELECT n + 1, (n + 1) * fact
+  FROM Factorials
+  WHERE n < 10
+)
+SELECT n, fact
+FROM Factorials
+ORDER BY n ASC;`,
+    alternativeSolutions: [
+      `WITH RECURSIVE Factorials(n, fact) AS (
+  SELECT 0, 1
+  UNION
+  SELECT n + 1, (n + 1) * fact
+  FROM Factorials
+  WHERE n < 10
+)
+SELECT n, fact FROM Factorials ORDER BY n ASC;`,
+    ],
+    hints: [
+      'Der Basisfall startet bei $n = 0$ mit $0! = 1$ (`SELECT 0, 1`).',
+      'Im rekursiven Teil erzeugen Sie `(n + 1, (n + 1) * fact)` solange `n < 10`.',
+    ],
+    solutionExplanation:
+      'Genau wie in Blatt 6 Aufg. 4(a): Rekursive CTE ohne Basistabelle; für $n = 10$ ergibt sich $10! = 3.628.800$ (passt problemlos in `INTEGER`).',
+  },
 ];

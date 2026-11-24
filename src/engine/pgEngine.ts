@@ -61,11 +61,22 @@ function extractPgError(err: unknown, leadingOffset: number): RawPgError {
   return { message: String(err) };
 }
 
+export interface ExecuteOptions {
+  setupSql?: string;
+  verificationSql?: string;
+  /** Nur ausführen, wenn userSql selbst keine Spalten liefert (für Sandbox bei DDL/DML) */
+  fallbackVerificationSql?: string;
+}
+
 /**
  * Executes an arbitrary user or reference SQL query inside a rolled-back transaction
  * so even accidental DML/DDL cannot corrupt the practice database.
  */
-export async function executeQuery(schemaId: SchemaId, rawSql: string): Promise<QueryResult> {
+export async function executeQuery(
+  schemaId: SchemaId,
+  rawSql: string,
+  options?: ExecuteOptions
+): Promise<QueryResult> {
   const trimmedStart = rawSql.trimStart();
   const leadingOffset = rawSql.length - trimmedStart.length;
   const cleaned = trimmedStart.replace(/;+\s*$/, '').trimEnd();
@@ -84,10 +95,50 @@ export async function executeQuery(schemaId: SchemaId, rawSql: string): Promise<
     // Protect against runaway WITH RECURSIVE cycles
     await db.exec("SET LOCAL statement_timeout = '3000ms'");
 
-    const results = await db.exec(cleaned, { rowMode: 'array' });
-    const selectResult =
+    if (options?.setupSql) {
+      try {
+        await db.exec(options.setupSql);
+      } catch (err) {
+        const pgErr = extractPgError(err, 0);
+        throw new SqlExecutionError({
+          message: `Setup-Fehler vor Ausführung: ${pgErr.message}`,
+          code: pgErr.code,
+          detail: pgErr.detail,
+        });
+      }
+    }
+
+    let results;
+    try {
+      results = await db.exec(cleaned, { rowMode: 'array' });
+    } catch (err) {
+      throw new SqlExecutionError(extractPgError(err, leadingOffset));
+    }
+
+    let selectResult =
       [...results].reverse().find((r) => r.fields && r.fields.length > 0) ??
       results[results.length - 1];
+
+    const hasUserColumns = Boolean(selectResult?.fields && selectResult.fields.length > 0);
+    const verSql =
+      options?.verificationSql ?? (!hasUserColumns ? options?.fallbackVerificationSql : undefined);
+
+    if (verSql) {
+      try {
+        const verResults = await db.exec(verSql, { rowMode: 'array' });
+        selectResult =
+          [...verResults].reverse().find((r) => r.fields && r.fields.length > 0) ??
+          verResults[verResults.length - 1];
+      } catch (err) {
+        // Do NOT map verificationSql position offsets onto userSql
+        const pgErr = extractPgError(err, 0);
+        throw new SqlExecutionError({
+          message: `Prüfabfrage nach deiner Anweisung fehlgeschlagen: ${pgErr.message}`,
+          code: pgErr.code,
+          detail: pgErr.detail,
+        });
+      }
+    }
 
     const durationMs = Math.max(
       1,
@@ -112,8 +163,6 @@ export async function executeQuery(schemaId: SchemaId, rawSql: string): Promise<
       rowCount: rows.length,
       durationMs,
     };
-  } catch (err) {
-    throw new SqlExecutionError(extractPgError(err, leadingOffset));
   } finally {
     try {
       await db.exec('ROLLBACK');

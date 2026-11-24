@@ -1,13 +1,15 @@
 import { useEffect } from 'react';
-import { CalendarCheck2, Database, Flame, Library, Moon, RotateCcw, Sun } from 'lucide-react';
+import { CalendarCheck2, Database, FileText, Flame, Library, Moon, RotateCcw, Sun } from 'lucide-react';
 
-export type AppView = 'daily' | 'catalog' | 'workspace';
+export type AppView = 'daily' | 'sheets' | 'catalog' | 'workspace';
 
 interface HeaderProps {
   view: AppView;
-  onNavigate: (view: 'daily' | 'catalog') => void;
+  onNavigate: (view: 'daily' | 'sheets' | 'catalog') => void;
   dailySolvedCount: number;
   dailyTotalCount: number;
+  sheetsSolvedCount: number;
+  sheetsTotalCount: number;
   totalSolvedCount: number;
   totalExerciseCount: number;
   streak: number;
@@ -30,6 +32,8 @@ export function Header({
   onNavigate,
   dailySolvedCount,
   dailyTotalCount,
+  sheetsSolvedCount,
+  sheetsTotalCount,
   totalSolvedCount,
   totalExerciseCount,
   streak,
@@ -106,6 +110,15 @@ export function Header({
           >
             <CalendarCheck2 size={16} aria-hidden="true" />
             Tages-Training
+          </button>
+          <button
+            type="button"
+            className="nav-pill"
+            aria-current={view === 'sheets' ? 'page' : undefined}
+            onClick={() => onNavigate('sheets')}
+          >
+            <FileText size={16} aria-hidden="true" />
+            Übungsblätter ({sheetsSolvedCount}/{sheetsTotalCount})
           </button>
           <button
             type="button"

@@ -839,6 +839,7 @@ body {
   margin: 0 0 0.9rem;
   font-size: 0.96rem;
   line-height: 1.6;
+  white-space: pre-line;
 }
 
 .spec-box {
@@ -1614,4 +1615,336 @@ dialog.confirm-dialog::backdrop {
 .error-raw-pg code {
   font-family: var(--font-mono);
   font-size: 0.76rem;
+}
+
+/* ==========================================================================
+   Übungsblätter Tab (SheetsView)
+   ========================================================================== */
+.sheet-filter-bar {
+  justify-content: space-between;
+}
+
+.sheet-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.sheet-pill-btn {
+  min-block-size: 36px;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-canvas);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.sheet-pill-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.sheet-pill-btn[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Accessible Checkbox per modern-web-guidance checkbox & brand-consistent-forms */
+.sheet-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-block-size: 44px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.sheet-toggle-checkbox {
+  accent-color: var(--accent);
+  inline-size: 1.2em;
+  aspect-ratio: 1;
+  margin: 0;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+@supports not (accent-color: auto) {
+  .sheet-toggle-checkbox {
+    appearance: none;
+    border: 2px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--bg-surface);
+    display: inline-grid;
+    place-content: center;
+  }
+
+  .sheet-toggle-checkbox:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .sheet-toggle-checkbox:checked::after {
+    content: '✓';
+    color: var(--accent-text);
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+}
+
+.sheets-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.sheet-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.4rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.sheet-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.sheet-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-block-end: 0.25rem;
+}
+
+.sheet-card-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.sheet-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.sheet-card-summary {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.sheet-task-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
+}
+
+.sheet-task-group {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.95rem 1.05rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.sheet-task-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem 0.85rem;
+}
+
+.sheet-task-title-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.sheet-task-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.sheet-task-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sheet-task-intro {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.sheet-subtask-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.sheet-subtask-btn {
+  inline-size: 100%;
+  min-block-size: 42px;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  text-align: start;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.sheet-subtask-btn:hover {
+  border-color: var(--accent);
+  background: var(--bg-subtle);
+}
+
+.sheet-subtask-btn--solved {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--border));
+}
+
+.sheet-subtask-left {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-inline-size: 0;
+}
+
+.subtask-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 2.3rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.sheet-subtask-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-subtask-right {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.sheet-kind-badge {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.14rem 0.45rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.sheet-action-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-inline-start: 0.2rem;
+}
+
+.sheet-info-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.sheet-info-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-block-start: 0.12rem;
+}
+
+.sheet-theory-note {
+  margin: 1.15rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .sheet-subtask-btn {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sheet-subtask-left {
+    inline-size: 100%;
+  }
+
+  .sheet-subtask-title {
+    white-space: normal;
+  }
+
+  .sheet-subtask-right {
+    inline-size: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
 }

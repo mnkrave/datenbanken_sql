@@ -176,15 +176,26 @@ export function ExerciseWorkspace({
             )}
 
             <div className="spec-box">
-              <span className="spec-item">
-                <strong>Erwartete Spalten ({exercise.expectedColumns.length}):</strong>{' '}
-                {exercise.expectedColumns.map((col, i) => (
-                  <span key={`${col}-${i}`}>
-                    <code className="spec-code">{col}</code>
-                    {i < exercise.expectedColumns.length - 1 ? ', ' : ''}
-                  </span>
-                ))}
-              </span>
+              {exercise.verificationNote ? (
+                <span className="spec-item">
+                  <strong>Prüfung:</strong> {exercise.verificationNote}
+                </span>
+              ) : (
+                <span className="spec-item">
+                  <strong>Erwartete Spalten ({exercise.expectedColumns.length}):</strong>{' '}
+                  {exercise.expectedColumns.map((col, i) => (
+                    <span key={`${col}-${i}`}>
+                      <code className="spec-code">{col}</code>
+                      {i < exercise.expectedColumns.length - 1 ? ', ' : ''}
+                    </span>
+                  ))}
+                </span>
+              )}
+              {exercise.singleStatementOnly && (
+                <span className="spec-item">
+                  <strong>Anweisungen:</strong> Genau 1 SQL-Statement
+                </span>
+              )}
               <span className="spec-item">
                 <strong>Reihenfolge:</strong>{' '}
                 {exercise.orderMatters ? 'Wichtig (ORDER BY prüfen)' : 'Beliebig'}
@@ -383,7 +394,11 @@ export function ExerciseWorkspace({
                 <div className="tables-compare-grid">
                   {evaluation.userResult && (
                     <ResultTable
-                      title="Dein Abfrageergebnis"
+                      title={
+                        exercise.verificationSql
+                          ? 'Prüfergebnis (nach Ausführung)'
+                          : 'Dein Abfrageergebnis'
+                      }
                       result={evaluation.userResult}
                     />
                   )}
